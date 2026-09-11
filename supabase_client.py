@@ -353,6 +353,16 @@ def bind_telegram_to_profile(web_user_id, telegram_id):
     if client is None or not web_user_id or not telegram_id:
         return False
     try:
+        # Phòng ngừa unique constraint: xóa mọi profile KHÁC có cùng telegram_id
+        # (profile cũ từ bot cũ dùng id = telegram_id, hoặc profile trùng liên kết)
+        client.table("profiles").delete() \
+            .neq("id", web_user_id) \
+            .eq("telegram_id", int(telegram_id)) \
+            .execute()
+        client.table("profiles").delete() \
+            .neq("id", web_user_id) \
+            .eq("id", str(telegram_id)) \
+            .execute()
         res = (
             client.table("profiles")
             .update({
