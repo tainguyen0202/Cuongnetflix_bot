@@ -13,6 +13,7 @@ import logging
 from telegram import Update, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     filters,
@@ -22,7 +23,7 @@ from telegram.request import HTTPXRequest
 from config import BOT_TOKEN, ADMIN_IDS
 from supabase_client import load_cookies_from_supabase
 from api_server import start_api_server
-from handlers import cmd_start, cmd_loginlink
+from handlers import cmd_start, cmd_loginlink, cmd_lang, on_lang_callback
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s | %(message)s",
@@ -34,6 +35,7 @@ logger = logging.getLogger("NetflixBot")
 USER_COMMANDS = [
     BotCommand("start", "Bắt đầu / Start"),
     BotCommand("loginlink", "Lấy link đăng nhập / Get login link"),
+    BotCommand("lang", "Đổi ngôn ngữ / Change language"),
 ]
 
 
@@ -79,6 +81,8 @@ def main():
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("loginlink", cmd_loginlink))
+    app.add_handler(CommandHandler("lang", cmd_lang))
+    app.add_handler(CallbackQueryHandler(on_lang_callback, pattern="^lang_"))
 
     logger.info("🚀 Bot is running!")
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)

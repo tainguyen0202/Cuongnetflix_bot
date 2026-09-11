@@ -130,6 +130,35 @@ def get_profile_by_telegram(telegram_id):
         return None
 
 
+def get_user_lang(telegram_id):
+    """Đọc ngôn ngữ của user theo telegram_id. Mặc định 'vi'."""
+    profile = get_profile_by_telegram(telegram_id)
+    if not profile:
+        return "vi"
+    lang = profile.get("lang") or ""
+    return lang if lang in ("vi", "en") else "vi"
+
+
+def set_user_lang(telegram_id, lang):
+    """Lưu ngôn ngữ của user vào profile (Supabase)."""
+    client = _get_client()
+    if client is None or not telegram_id:
+        return False
+    if lang not in ("vi", "en"):
+        return False
+    try:
+        res = (
+            client.table("profiles")
+            .update({"lang": lang, "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+            .eq("telegram_id", int(telegram_id))
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:
+        logger.warning("set_user_lang failed: %s", e)
+        return False
+
+
 def _is_expired(profile):
     """Plan hết hạn 30 ngày chưa."""
     exp = profile.get("plan_expires_at")

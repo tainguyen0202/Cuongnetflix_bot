@@ -26,6 +26,7 @@ from config import (
     SHRINKME_GATE_TTL,
     WEB_URL,
 )
+from lang import t
 from shrinkme import shorten as shrinkme_shorten
 from supabase_client import (
     consume_quota,
@@ -34,6 +35,8 @@ from supabase_client import (
     get_cookie_pool,
     get_profile_by_telegram,
     get_quota_left,
+    get_user_lang,
+    set_user_lang,
     update_cookie_status,
 )
 
@@ -165,34 +168,38 @@ def _find_and_generate_login_link():
     return None, "Không tìm thấy cookie LIVE. Vui lòng thử lại sau.", None
 
 
-def _build_loginlink_message(link, payload, quota_left, quota_limit):
-    """Tin nhắn kết quả nhận link."""
+def _build_loginlink_message(link, payload, quota_left, quota_limit, lang="vi"):
+    """Tin nhắn kết quả nhận link — format chuẩn (Plan/Mail/Hạn + 3 link thiết bị)."""
     account_plan = (payload or {}).get("plan") or "-"
     email = (payload or {}).get("email") or "-"
     billing = (payload or {}).get("billing") or "-"
+
     links = _build_device_links(link)
     admin_url = "https://t.me/" + ADMIN_TAG.lstrip("@")
-
     lines = [
-        "🎬 <b>Link đăng nhập Netflix của bạn</b>",
+        t("link_header", lang),
         "",
-        f"📦 <b>Gói:</b> {escape(str(account_plan))}",
-        f"📧 <b>Mail:</b> {escape(str(email))}",
-        f"💳 <b>Hạn:</b> {escape(str(billing))}",
+        t("link_plan", lang, plan=escape(str(account_plan))),
+        t("link_mail", lang, email=escape(str(email))),
+        t("link_han", lang, billing=escape(str(billing))),
         "",
-        "🔗 <b>Link đăng nhập:</b>",
+        t("link_title", lang),
     ]
     if links:
-        lines.append(f"💻 PC: <code>{escape(links['pc'])}</code>")
-        lines.append(f"📱 Phone: <code>{escape(links['phone'])}</code>")
-        lines.append(f"📺 TV: <code>{escape(links['tv'])}</code>")
+        lines.append(
+            t("link_devices", lang, pc=links["pc"], phone=links["phone"], tv=links["tv"])
+        )
     else:
         lines.append(f"<code>{escape(link)}</code>")
     lines.append("")
-    lines.append("⏳ Link có hiệu lực trong 60 phút.")
+    lines.append(t("link_expire", lang))
+
     if quota_limit > 0:
-        lines.append(f"✅ Còn <b>{quota_left}</b>/{quota_limit} lượt hôm nay.")
-    lines.append(f"🛠 Liên hệ: <a href=\"{admin_url}\">Admin</a>")
+        lines.append(t("link_remaining", lang, left=quota_left, limit=quota_limit))
+    else:
+        lines.append(t("link_remaining_inf", lang))
+
+    lines.append(t("link_admin", lang, admin=f'<a href="{admin_url}">Admin</a>'))
     return "\n".join(lines)
 
 
@@ -203,7 +210,7 @@ async def _deliver_login_link(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not user or not msg:
         return False
 
-    searching = await msg.reply_text("🔍 Đang tìm cookie LIVE...", parse_mode=ParseMode.HTML)
+    searching = await msg.reply_text(t("searching", lang), parse_mode=ParseMode.HTML)
 
     loop = asyncio.get_event_loop()
     link, error, payload = await loop.run_in_executor(_executor, _find_and_generate_login_link)
@@ -224,19 +231,20 @@ async def _deliver_login_link(update: Update, context: ContextTypes.DEFAULT_TYPE
             quota_left = get_quota_left(updated)
 
     await searching.edit_text(
-        _build_loginlink_message(link, payload, quota_left, quota_limit),
+        _build_loginlink_message(link, payload, quota_left, quota_limit, lang),
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
     return True
 
 
-async def _try_send_shrinkme_gate(send_fn, user, lang="vi") -> bool:
+async def _try_send_shrinkme_gate(send_fn, user, profile, lang="vi") -> bool:
     """
-    Gửi gate shrinkme. Admin / key rỗng → False (chạy luồng trực tiếp).
+    Gửi gate shrinkme CHỈ cho user free. Admin / basic / pro → False (chạy trực tiếp).
     True = đã gửi gate, caller dừng.
     """
-    if user.id in ADMIN_IDS or not SHRINKME_API_KEY:
+    plan = (profile or {}).get("plan") or "free"
+    if user.id in ADMIN_IDS or not SHRINKME_API_KEY or plan != "free":
         return False
 
     token = _create_shrinkme_token(user.id)
@@ -245,16 +253,14 @@ async def _try_send_shrinkme_gate(send_fn, user, lang="vi") -> bool:
     short = await loop.run_in_executor(_executor, shrinkme_shorten, deep_link)
     if not short:
         await send_fn(
-            "⚠️ Hệ thống gate đang bảo trì. Vui lòng thử lại sau.",
+            t("gate_maintenance", lang),
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
         )
         return True
 
     await send_fn(
-        f"🔗 <b>Vượt link để nhận link đăng nhập:</b>\n\n"
-        f"👉 <a href=\"{short}\">Bấm vào đây</a>\n\n"
-        f"⏳ Link có hiệu lực trong 30 phút.",
+        t("shrinkme_gate_msg", lang, url=short),
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
@@ -274,43 +280,107 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if _pop_shrinkme_token(token, user.id):
             profile = get_profile_by_telegram(user.id)
             if profile:
-                await _deliver_login_link(update, context, profile)
+                lang = get_user_lang(user.id)
+                await _deliver_login_link(update, context, profile, lang)
             else:
                 await msg.reply_text(
-                    "❌ Không tìm thấy tài khoản của bạn. Vui lòng đăng ký web và liên kết Telegram ID trước.",
+                    t("not_linked", get_user_lang(user.id), web=WEB_URL),
                     parse_mode=ParseMode.HTML,
                 )
         else:
             await msg.reply_text(
-                "❌ Link gate không hợp lệ hoặc đã hết hạn. Vui lòng dùng /loginlink lại.",
+                t("shrinkme_invalid", get_user_lang(user.id)),
                 parse_mode=ParseMode.HTML,
             )
         return
 
+    # Tìm profile theo telegram_id
     profile = get_profile_by_telegram(user.id)
-    if profile:
-        plan = profile.get("plan") or "free"
-        quota_left = get_quota_left(profile)
-        quota_limit = int(profile.get("quota_limit") or 0)
-        plan_label = {"free": "Free", "basic": "Basic", "pro": "Pro"}.get(plan, plan)
+    if not profile:
         await msg.reply_text(
-            f"👋 Chào {escape(user.first_name or 'bạn')}!\n\n"
-            f"📊 <b>Gói:</b> {plan_label}\n"
-            f"🎟 <b>Lượt còn lại hôm nay:</b> {quota_left if quota_limit > 0 else 'Không giới hạn (qua gate)'}\n\n"
-            f"Dùng /loginlink để lấy link đăng nhập Netflix.",
-            parse_mode=ParseMode.HTML,
-        )
-    else:
-        await msg.reply_text(
-            f"👋 Chào {escape(user.first_name or 'bạn')}!\n\n"
-            f"Bot này yêu cầu tài khoản web để quản lý lượt dùng.\n\n"
-            f"1️⃣ Đăng ký/đăng nhập tại: {WEB_URL}\n"
-            f"2️⃣ Vào trang <b>Hồ sơ</b>, nhập <b>Telegram ID</b> của bạn (lấy từ @userinfobot)\n"
-            f"3️⃣ Quay lại đây dùng /loginlink\n\n"
-            f"🛠 Liên hệ: <a href=\"https://t.me/{ADMIN_TAG.lstrip('@')}\">Admin</a>",
+            t("not_linked", get_user_lang(user.id), web=WEB_URL),
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
         )
+        return
+
+    # Chọn ngôn ngữ trước (lần đầu /start hoặc chưa có lang)
+    lang = get_user_lang(user.id)
+    if not profile.get("lang"):
+        await msg.reply_text(
+            t("lang_prompt", lang),
+            reply_markup=_lang_keyboard(),
+        )
+        return
+
+    await _send_welcome(update, profile, lang)
+
+
+def _lang_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇻🇳 Tiếng Việt", callback_data="lang_vi"),
+         InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")],
+    ])
+
+
+async def _send_welcome(update: Update, profile, lang="vi", msg=None):
+    user = update.effective_user
+    if not user:
+        return
+    if msg is None:
+        msg = update.effective_message
+    if not msg:
+        return
+    name = user.first_name or user.username or "User"
+    plan = profile.get("plan") or "free"
+    quota_left = get_quota_left(profile)
+    quota_limit = int(profile.get("quota_limit") or 0)
+    plan_label = {"free": "Free", "basic": "Basic", "pro": "Pro"}.get(plan, plan)
+    await msg.reply_text(
+        t("welcome", lang, name=name),
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+    )
+    await msg.reply_text(
+        f"📊 <b>Gói:</b> {plan_label}\n"
+        f"🎟 <b>Lượt còn lại hôm nay:</b> {quota_left if quota_limit > 0 else 'Không giới hạn (qua gate)'}\n\n"
+        f"Dùng /loginlink để lấy link đăng nhập Netflix.",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+async def cmd_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    msg = update.effective_message
+    if not user or not msg:
+        return
+    lang = get_user_lang(user.id)
+    await msg.reply_text(
+        t("lang_prompt", lang),
+        reply_markup=_lang_keyboard(),
+    )
+
+
+async def on_lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not query or not query.data:
+        return
+    user = query.from_user
+    if not user:
+        return
+    lang = "vi" if query.data == "lang_vi" else "en"
+    set_user_lang(user.id, lang)
+    await query.answer()
+    try:
+        await query.message.edit_text(
+            t("lang_saved", lang),
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception:
+        pass
+    profile = get_profile_by_telegram(user.id)
+    if profile:
+        await _send_welcome(update, profile, lang, msg=query.message)
 
 
 async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -319,10 +389,12 @@ async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user or not msg:
         return
 
+    lang = get_user_lang(user.id)
+
     # Rate limit: 5 lần/15 phút
     if _rate_limited("loginlink", user.id):
         await msg.reply_text(
-            "⏳ Bạn đang thao tác quá nhanh. Vui lòng thử lại sau 15 phút.",
+            t("rate_limited", lang),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -331,10 +403,7 @@ async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     profile = get_profile_by_telegram(user.id)
     if not profile:
         await msg.reply_text(
-            f"❌ Bạn chưa liên kết tài khoản.\n\n"
-            f"1️⃣ Đăng ký/đăng nhập tại: {WEB_URL}\n"
-            f"2️⃣ Vào trang <b>Hồ sơ</b>, nhập <b>Telegram ID</b> của bạn\n"
-            f"3️⃣ Quay lại đây dùng /loginlink",
+            t("not_linked", lang, web=WEB_URL),
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
         )
@@ -350,15 +419,13 @@ async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if plan not in (None, "free") and quota_left <= 0:
         await msg.reply_text(
-            f"❌ Bạn đã dùng hết {quota_limit} lượt hôm nay.\n"
-            f"Hạn mức sẽ reset vào 00:00 (giờ VN).\n"
-            f"Liên hệ: <a href=\"https://t.me/{ADMIN_TAG.lstrip('@')}\">Admin</a>",
+            t("no_uses_left", lang),
             parse_mode=ParseMode.HTML,
         )
         return
 
-    # Gate shrinkme (free plan bắt buộc qua gate; basic/pro cũng qua gate)
-    if await _try_send_shrinkme_gate(msg.reply_text, user):
+    # Gate shrinkme CHỈ cho user free; basic/pro nhận link trực tiếp
+    if await _try_send_shrinkme_gate(msg.reply_text, user, profile, lang):
         return
 
-    await _deliver_login_link(update, context, profile)
+    await _deliver_login_link(update, context, profile, lang)
