@@ -50,6 +50,7 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 # ── Shrinkme gate tokens (RAM, TTL, single-use, bind user_id) ──
 _shrinkme_pending = {}  # token -> {"user_id": int, "created": float}
+_link_pending = {}  # user_id -> {"token": str, "web_email": str, "created": float}
 
 # ── Rate limit: 5 lần/15 phút/user ──
 _rate = {}  # user_id -> [timestamps]
@@ -303,6 +304,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         web_user_id = link.get("web_user_id")
+        web_email = link.get("web_email") or "-"
         if not web_user_id:
             await msg.reply_text(
                 t("link_invalid", get_user_lang(user.id)),
@@ -310,19 +312,21 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Ghi telegram_id vào profile web + đánh dấu token linked
-        ok = bind_telegram_to_profile(web_user_id, user.id)
-        if ok:
-            mark_telegram_link_linked(token, user.id)
-            await msg.reply_text(
-                t("link_success", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
-        else:
-            await msg.reply_text(
-                t("link_failed", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
+        # Lưu pending xác nhận (chờ callback nút Yes/No)
+        _link_pending[user.id] = {"token": token, "web_user_id": web_user_id, "web_email": web_email}
+        # Hiện inline keyboard xác nhận email
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Xác nhận đúng email", callback_data=f"link_yes"),
+                InlineKeyboardButton("❌ Hủy", callback_data=f"link_no"),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await msg.reply_text(
+            t("link_confirm_body", get_user_lang(user.id), email=web_email),
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup,
+        )
         return
 
     # Gate shrinkme pending (user quay lại từ link rút gọn)
@@ -437,6 +441,51 @@ async def on_lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     profile = get_profile_by_telegram(user.id)
     if profile:
         await _send_welcome(update, profile, lang, msg=query.message)
+
+
+async def on_link_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Xử lý callback nút xác nhận/hủy liên kết Telegram."""
+    query = update.callback_query
+    if not query or not query.data:
+        return
+    user = update.effective_user
+    if not user:
+        return
+    data = query.data  # "link_yes" hoặc "link_no"
+    pending = _link_pending.pop(user.id, None)
+    if not pending:
+        await query.answer()
+        await query.message.edit_text("Phiên xác nhận đã hết hoặc không tìm thấy.")
+        return
+    token = pending["token"]
+    web_user_id = pending["web_user_id"]
+    web_email = pending["web_email"]
+    if data == "link_yes":
+        # Xác nhận: bind telegram_id + mark linked
+        ok = bind_telegram_to_profile(web_user_id, user.id)
+        if ok:
+            mark_telegram_link_linked(token, user.id)
+            await query.answer("✅ Đã xác nhận!")
+            await query.message.edit_text(
+                t("link_success", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            await query.answer("❌ Liên kết thất bại!", show_alert=True)
+            await query.message.edit_text(
+                t("link_failed", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+    elif data == "link_no":
+        # Hủy: expire token
+        expire_telegram_link(token)
+        await query.answer("Đã hủy.")
+        await query.message.edit_text(
+            t("link_cancelled", get_user_lang(user.id)),
+            parse_mode=ParseMode.HTML,
+        )
+    else:
+        await query.answer("Lệnh không xác định.", show_alert=True)
 
 
 async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):

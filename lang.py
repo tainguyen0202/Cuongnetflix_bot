@@ -150,6 +150,11 @@ STRINGS = {
             "🍿 Type /loginlink to get a movie link now!"
         ),
         "link_failed": "❌ Linking failed. Please try again in a few minutes or contact Admin.",
+        "link_confirm_title": "🔐 XÁC NHẬN LIÊN KẾT",
+        "link_confirm_body": "Bạn muốn liên kết tài khoản Telegram này với tài khoản web:\n📧 {email}\n\nĐúng email của bạn chứ?",
+        "link_confirm_yes": "✅ Xác nhận đúng email",
+        "link_confirm_no": "❌ Hủy",
+        "link_cancelled": "Đã hủy liên kết. Vào web bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
     },
 }
 
