@@ -76,6 +76,11 @@ STRINGS = {
             "🍿 Gõ /loginlink để nhận link xem phim ngay!"
         ),
         "link_failed": "❌ Liên kết thất bại. Vui lòng thử lại sau ít phút hoặc liên hệ Admin.",
+        "link_confirm_title": "🔐 XÁC NHẬN LIÊN KẾT",
+        "link_confirm_body": "Bạn muốn liên kết tài khoản Telegram này với tài khoản web:\n📧 {email}\n\nĐúng email của bạn chứ?",
+        "link_confirm_yes": "✅ Xác nhận đúng email",
+        "link_confirm_no": "❌ Hủy",
+        "link_cancelled": "Đã hủy liên kết. Vào web bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
     },
     "en": {
         "lang_prompt": "🌐 Chọn ngôn ngữ / Choose language:",
@@ -150,11 +155,11 @@ STRINGS = {
             "🍿 Type /loginlink to get a movie link now!"
         ),
         "link_failed": "❌ Linking failed. Please try again in a few minutes or contact Admin.",
-        "link_confirm_title": "🔐 XÁC NHẬN LIÊN KẾT",
-        "link_confirm_body": "Bạn muốn liên kết tài khoản Telegram này với tài khoản web:\n📧 {email}\n\nĐúng email của bạn chứ?",
-        "link_confirm_yes": "✅ Xác nhận đúng email",
-        "link_confirm_no": "❌ Hủy",
-        "link_cancelled": "Đã hủy liên kết. Vào web bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
+        "link_confirm_title": "🔐 CONFIRM LINK",
+        "link_confirm_body": "Do you want to link this Telegram account with your web account:\n📧 {email}\n\nIs this your correct email?",
+        "link_confirm_yes": "✅ Confirm email",
+        "link_confirm_no": "❌ Cancel",
+        "link_cancelled": "Linking cancelled. Open the web app and tap <b>Link Telegram</b> to create a new link.",
     },
 }
 
