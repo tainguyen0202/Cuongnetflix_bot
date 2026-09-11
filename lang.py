@@ -12,11 +12,10 @@ STRINGS = {
         "welcome": (
             "🎬 <b>CUỒNG NETFLIX</b>\n"
             "\n"
-            "👋 Chào <b>{name}</b>!\n\n"
-            "🔗 Lấy link đăng nhập Netflix nhanh\n"
-            "💻📱📺 Xem được trên mọi thiết bị\n"
-            "Chỉ với 1 cú chạm, hệ thống sẽ cấp link đăng nhập thẳng vào Netflix trên mọi thiết bị (Điện thoại, Máy tính, Smart TV) mà không cần nhập mật khẩu.\n\n"
-            "💡 <i>Gõ /loginlink để lấy link đăng nhập ngay nhé!</i>"
+            "👋 Chào {name}, chúc bạn xem phim vui vẻ!\n\n"
+            "Nhận link đăng nhập Netflix tức thì chỉ với 1 chạm, hỗ trợ TV 📺, điện thoại 📱 & máy tính 💻 không cần mật khẩu.\n"
+            "🎟 Gói: {plan}\n\n"
+            "🍿 Gõ /loginlink để nhận link vào xem ngay nhé!"
         ),
 
         "searching": (
@@ -77,11 +76,10 @@ STRINGS = {
         "welcome": (
             "🎬 <b>CUỒNG NETFLIX</b>\n"
             "\n"
-            "👋 Hello <b>{name}</b>!\n\n"
-            "🔗 Get a Netflix login link quickly\n"
-            "💻📱📺 Works on every device\n"
-            "One tap — the system gives you a login link straight into Netflix on any device (Phone, Computer, Smart TV) without a password.\n\n"
-            "💡 <i>Type /loginlink to get your login link now!</i>"
+            "👋 Hello {name}, enjoy your movies!\n\n"
+            "Get a Netflix login link instantly with one tap, supporting TV 📺, phone 📱 & computer 💻 without a password.\n"
+            "🎟 Plan: {plan}\n\n"
+            "🍿 Type /loginlink to get your link now!"
         ),
 
         "searching": (
