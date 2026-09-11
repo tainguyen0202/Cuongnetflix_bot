@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy code bot (không copy .env — env vars set trên hosting)
-COPY config.py supabase_client.py handlers.py api_server.py main.py checker.py proxies.py shrinkme.py ./
+COPY config.py supabase_client.py handlers.py api_server.py main.py checker.py proxies.py shrinkme.py lang.py ./
 COPY PROXY_URLS.txt ./
 
 # Mở port API server (web gọi check-cookie)
