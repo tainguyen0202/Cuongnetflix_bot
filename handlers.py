@@ -336,16 +336,17 @@ async def _send_welcome(update: Update, profile, lang="vi", msg=None):
     quota_left = get_quota_left(profile)
     quota_limit = int(profile.get("quota_limit") or 0)
     plan_label = {"free": "Free", "basic": "Basic", "pro": "Pro"}.get(plan, plan)
-    await msg.reply_text(
-        t("welcome", lang, name=name),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True,
+    text = (
+        t("welcome", lang, name=name)
+        + "\n\n"
+        + f"📊 <b>Gói:</b> {plan_label}\n"
+        + f"🎟 <b>Lượt còn lại hôm nay:</b> {quota_left if quota_limit > 0 else 'Không giới hạn (qua gate)'}\n\n"
+        + f"Dùng /loginlink để lấy link đăng nhập Netflix."
     )
     await msg.reply_text(
-        f"📊 <b>Gói:</b> {plan_label}\n"
-        f"🎟 <b>Lượt còn lại hôm nay:</b> {quota_left if quota_limit > 0 else 'Không giới hạn (qua gate)'}\n\n"
-        f"Dùng /loginlink để lấy link đăng nhập Netflix.",
+        text,
         parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
     )
 
 
