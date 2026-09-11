@@ -315,7 +315,6 @@ def mark_telegram_link_linked(token, telegram_id):
             .update({
                 "status": "linked",
                 "telegram_id": int(telegram_id),
-                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             })
             .eq("token", token)
             .execute()
@@ -336,7 +335,6 @@ def expire_telegram_link(token):
             client.table("telegram_links")
             .update({
                 "status": "expired",
-                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             })
             .eq("token", token)
             .execute()
