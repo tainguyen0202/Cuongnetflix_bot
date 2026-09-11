@@ -53,7 +53,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
 # ── Web URL (để bot hướng dẫn user đăng ký/liên kết) ──
-WEB_URL = os.getenv("WEB_URL", "https://cuongnetflix.vercel.app")
+WEB_URL = os.getenv("WEB_URL", "https://cuongnetflix-web.vercel.app")
 
 # ── Quota / Plans (đồng bộ với web) ──
 PLAN_DURATION_DAYS = 30

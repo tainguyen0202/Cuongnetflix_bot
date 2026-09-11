@@ -280,3 +280,89 @@ def delete_cookie(raw_line):
         client.table("cookies").delete().eq("raw_line", raw_line).execute()
     except Exception as e:
         logger.warning("delete_cookie failed: %s", e)
+
+
+# ── Telegram link (web <-> bot auto-link) ──
+
+def get_telegram_link(token):
+    """Tra token liên kết web->bot. Trả về dict hoặc None."""
+    client = _get_client()
+    if client is None or not token:
+        return None
+    try:
+        res = (
+            client.table("telegram_links")
+            .select("*")
+            .eq("token", token)
+            .limit(1)
+            .execute()
+        )
+        rows = res.data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        logger.warning("get_telegram_link failed: %s", e)
+        return None
+
+
+def mark_telegram_link_linked(token, telegram_id):
+    """Đánh dấu token đã liên kết + ghi telegram_id. Trả về True/False."""
+    client = _get_client()
+    if client is None or not token or not telegram_id:
+        return False
+    try:
+        res = (
+            client.table("telegram_links")
+            .update({
+                "status": "linked",
+                "telegram_id": int(telegram_id),
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            })
+            .eq("token", token)
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:
+        logger.warning("mark_telegram_link_linked failed: %s", e)
+        return False
+
+
+def expire_telegram_link(token):
+    """Đánh dấu token hết hạn (nếu quá TTL). Trả về True/False."""
+    client = _get_client()
+    if client is None or not token:
+        return False
+    try:
+        res = (
+            client.table("telegram_links")
+            .update({
+                "status": "expired",
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            })
+            .eq("token", token)
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:
+        logger.warning("expire_telegram_link failed: %s", e)
+        return False
+
+
+def bind_telegram_to_profile(web_user_id, telegram_id):
+    """Ghi telegram_id vào profile web (liên kết 1 chiều). Trả về True/False."""
+    client = _get_client()
+    if client is None or not web_user_id or not telegram_id:
+        return False
+    try:
+        res = (
+            client.table("profiles")
+            .update({
+                "telegram_id": int(telegram_id),
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            })
+            .eq("id", web_user_id)
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:
+        logger.warning("bind_telegram_to_profile failed: %s", e)
+        return False

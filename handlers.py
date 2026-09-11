@@ -29,13 +29,17 @@ from config import (
 from lang import t
 from shrinkme import shorten as shrinkme_shorten
 from supabase_client import (
+    bind_telegram_to_profile,
     consume_quota,
     delete_cookie,
     downgrade_expired,
+    expire_telegram_link,
     get_cookie_pool,
     get_profile_by_telegram,
     get_quota_left,
+    get_telegram_link,
     get_user_lang,
+    mark_telegram_link_linked,
     set_user_lang,
     update_cookie_status,
 )
@@ -273,8 +277,55 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user or not msg:
         return
 
-    # Gate shrinkme pending (user quay lại từ link rút gọn)
+    # Liên kết web -> bot (user bấm deep link từ web: t.me/bot?start=link_XXXX)
     text = (msg.text or "").strip()
+    if text.startswith("/start link_"):
+        token = text.split("link_", 1)[1]
+        link = get_telegram_link(token)
+        if not link:
+            await msg.reply_text(
+                t("link_invalid", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+        if link.get("status") == "linked":
+            await msg.reply_text(
+                t("link_already", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+        if link.get("status") == "expired" or _link_expired(link):
+            expire_telegram_link(token)
+            await msg.reply_text(
+                t("link_expired", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+
+        web_user_id = link.get("web_user_id")
+        if not web_user_id:
+            await msg.reply_text(
+                t("link_invalid", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+
+        # Ghi telegram_id vào profile web + đánh dấu token linked
+        ok = bind_telegram_to_profile(web_user_id, user.id)
+        if ok:
+            mark_telegram_link_linked(token, user.id)
+            await msg.reply_text(
+                t("link_success", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            await msg.reply_text(
+                t("link_failed", get_user_lang(user.id)),
+                parse_mode=ParseMode.HTML,
+            )
+        return
+
+    # Gate shrinkme pending (user quay lại từ link rút gọn)
     if text.startswith("/start shrinkme_"):
         token = text.split("shrinkme_", 1)[1]
         if _pop_shrinkme_token(token, user.id):
@@ -314,6 +365,19 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await _send_welcome(update, profile, lang)
+
+
+def _link_expired(link):
+    """Token liên kết hết hạn chưa (TTL 10 phút)."""
+    import datetime
+    exp = link.get("expires_at")
+    if not exp:
+        return False
+    try:
+        exp_dt = datetime.datetime.fromisoformat(str(exp).replace("Z", "+00:00"))
+        return exp_dt < datetime.datetime.now(datetime.timezone.utc)
+    except Exception:
+        return False
 
 
 def _lang_keyboard():

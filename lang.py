@@ -63,9 +63,19 @@ STRINGS = {
         "not_linked": (
             "❌ Bạn chưa liên kết tài khoản.\n\n"
             "1️⃣ Đăng ký/đăng nhập tại: {web}\n"
-            "2️⃣ Vào trang <b>Hồ sơ</b>, nhập <b>Telegram ID</b> của bạn\n"
+            "2️⃣ Vào trang <b>Hồ sơ</b>, bấm <b>Liên kết Telegram</b>\n"
             "3️⃣ Quay lại đây dùng /loginlink"
         ),
+
+        "link_invalid": "❌ Liên kết không hợp lệ hoặc đã bị xóa.\n\n👉 Vui lòng vào web và bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
+        "link_already": "✅ Tài khoản Telegram này đã được liên kết với tài khoản web.\n\n🍿 Gõ /loginlink để nhận link xem phim!",
+        "link_expired": "⌛ Liên kết đã hết hạn (10 phút).\n\n👉 Vui lòng vào web và bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
+        "link_success": (
+            "✅ <b>LIÊN KẾT THÀNH CÔNG!</b>\n\n"
+            "🎉 Tài khoản Telegram của bạn đã được liên kết với tài khoản web.\n\n"
+            "🍿 Gõ /loginlink để nhận link xem phim ngay!"
+        ),
+        "link_failed": "❌ Liên kết thất bại. Vui lòng thử lại sau ít phút hoặc liên hệ Admin.",
     },
     "en": {
         "lang_prompt": "🌐 Chọn ngôn ngữ / Choose language:",
@@ -127,9 +137,19 @@ STRINGS = {
         "not_linked": (
             "❌ You haven't linked your account.\n\n"
             "1️⃣ Register/login at: {web}\n"
-            "2️⃣ Go to <b>Profile</b>, enter your <b>Telegram ID</b>\n"
+            "2️⃣ Go to <b>Profile</b>, tap <b>Link Telegram</b>\n"
             "3️⃣ Come back and use /loginlink"
         ),
+
+        "link_invalid": "❌ Invalid or removed link.\n\n👉 Please open the web and tap <b>Link Telegram</b> to create a new link.",
+        "link_already": "✅ This Telegram account is already linked to a web account.\n\n🍿 Type /loginlink to get a movie link!",
+        "link_expired": "⌛ This link has expired (10 minutes).\n\n👉 Please open the web and tap <b>Link Telegram</b> to create a new link.",
+        "link_success": (
+            "✅ <b>LINKED SUCCESSFULLY!</b>\n\n"
+            "🎉 Your Telegram account has been linked to your web account.\n\n"
+            "🍿 Type /loginlink to get a movie link now!"
+        ),
+        "link_failed": "❌ Linking failed. Please try again in a few minutes or contact Admin.",
     },
 }
 

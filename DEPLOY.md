@@ -23,7 +23,7 @@ zip -r bot.zip config.py supabase_client.py handlers.py api_server.py main.py ch
    - `SUPABASE_SERVICE_KEY` = (lấy từ .env)
    - `SHRINKME_API_KEY` = (lấy từ .env)
    - `ADMIN_IDS` = `1208795685`
-   - `WEB_URL` = `https://cuongnetflix.vercel.app`
+   - `WEB_URL` = `https://cuongnetflix-web.vercel.app`
 8. **Start** app
 
 ## 3. Lấy URL API bot
@@ -41,6 +41,7 @@ Port 8081 sẽ được map thành URL đó.
 ## 5. Test
 
 1. Mở bot Telegram `@cuongnetflix_bot` → `/start`
-2. Đăng nhập web → Hồ sơ → nhập Telegram ID
+2. Đăng nhập web → Hồ sơ → bấm **Liên kết Telegram** → mở bot → gõ `/start`
+   (liên kết tự động, không cần nhập ID thủ công)
 3. Dùng `/loginlink` trên bot
 4. Test web check cookie (NetflixProcessorTool)
