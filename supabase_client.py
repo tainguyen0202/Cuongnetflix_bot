@@ -63,24 +63,29 @@ def load_cookies_from_supabase():
         return 0
     try:
         lines = []
-        offset = 0
-        page_size = 1000
+        # Keyset pagination theo id (uuid) thay vì offset — offset scan chậm trên bảng lớn
+        # (text raw_line dài ~1KB/row) gây 504 Gateway Timeout khi bảng > 11.000 rows.
+        page_size = 500
+        last_id = None
         while True:
-            res = (
+            q = (
                 client.table("cookies")
-                .select("raw_line")
+                .select("id, raw_line")
                 .eq("website_name", "Netflix")
                 .neq("status", "dead")
-                .range(offset, offset + page_size - 1)
-                .execute()
+                .order("id")
+                .limit(page_size)
             )
+            if last_id:
+                q = q.gt("id", last_id)
+            res = q.execute()
             rows = res.data or []
             if not rows:
                 break
             lines.extend(r["raw_line"] for r in rows if r.get("raw_line"))
             if len(rows) < page_size:
                 break
-            offset += page_size
+            last_id = rows[-1]["id"]
         with _cookies_lock:
             _cookies = lines
         logger.info("Loaded %d cookies from Supabase", len(lines))
