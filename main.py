@@ -9,6 +9,8 @@ Supabase is the source of truth. The bot:
 """
 
 import logging
+import threading
+import time
 
 from telegram import Update, BotCommand
 from telegram.ext import (
@@ -30,6 +32,25 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger("NetflixBot")
+
+# Tự reload cookie pool từ Supabase định kỳ để nhận cookie mới admin import
+# mà không cần restart bot (bot chỉ load 1 lần lúc startup trước đây).
+COOKIE_RELOAD_INTERVAL_SEC = 300  # 5 phút
+
+
+def _start_cookie_reloader():
+    def _loop():
+        while True:
+            time.sleep(COOKIE_RELOAD_INTERVAL_SEC)
+            try:
+                total = load_cookies_from_supabase()
+                logger.info("Cookie pool auto-reloaded: %d cookies", total)
+            except Exception as e:
+                logger.warning("Cookie pool auto-reload failed: %s", e)
+
+    t = threading.Thread(target=_loop, daemon=True, name="cookie-reloader")
+    t.start()
+    logger.info("Cookie auto-reloader started (every %ds)", COOKIE_RELOAD_INTERVAL_SEC)
 
 
 USER_COMMANDS = [
@@ -63,6 +84,7 @@ def main():
     # Load cookie pool from Supabase (source of truth)
     total = load_cookies_from_supabase()
     logger.info("Ready! %d cookies loaded from Supabase.", total)
+    _start_cookie_reloader()
 
     request = HTTPXRequest(
         connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0,
