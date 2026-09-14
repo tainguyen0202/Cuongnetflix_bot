@@ -7,7 +7,6 @@ Only /start and /loginlink. Quota + plan live on Supabase (web-managed).
 import asyncio
 import logging
 import random
-import secrets
 import time
 from concurrent.futures import ThreadPoolExecutor
 from html import escape
@@ -20,26 +19,17 @@ from telegram.constants import ParseMode
 from config import (
     ADMIN_IDS,
     ADMIN_TAG,
-    BOT_USERNAME,
-    GROUP_USERNAMES,
-    SHRINKME_API_KEY,
-    SHRINKME_GATE_TTL,
     WEB_URL,
 )
 from lang import t
-from shrinkme import shorten as shrinkme_shorten
 from supabase_client import (
-    bind_telegram_to_profile,
     consume_quota,
     delete_cookie,
     downgrade_expired,
-    expire_telegram_link,
     get_cookie_pool,
     get_profile_by_telegram,
     get_quota_left,
-    get_telegram_link,
     get_user_lang,
-    mark_telegram_link_linked,
     set_user_lang,
     update_cookie_status,
 )
@@ -47,10 +37,6 @@ from supabase_client import (
 logger = logging.getLogger("NetflixBot")
 
 _executor = ThreadPoolExecutor(max_workers=4)
-
-# ── Shrinkme gate tokens (RAM, TTL, single-use, bind user_id) ──
-_shrinkme_pending = {}  # token -> {"user_id": int, "created": float}
-_link_pending = {}  # user_id -> {"token": str, "web_email": str, "created": float}
 
 # ── Rate limit: 5 lần/15 phút/user ──
 _rate = {}  # user_id -> [timestamps]
@@ -65,23 +51,6 @@ def _rate_limited(key, user_id, limit=5, window=15 * 60):
     ts.append(now)
     _rate[(key, user_id)] = ts
     return False
-
-
-def _create_shrinkme_token(user_id):
-    token = secrets.token_hex(8)
-    _shrinkme_pending[token] = {"user_id": user_id, "created": time.time()}
-    return token
-
-
-def _pop_shrinkme_token(token, user_id):
-    item = _shrinkme_pending.pop(token, None)
-    if not item:
-        return False
-    if item["user_id"] != user_id:
-        return False
-    if time.time() - item["created"] > SHRINKME_GATE_TTL:
-        return False
-    return True
 
 
 def _build_device_links(link):
@@ -243,110 +212,10 @@ async def _deliver_login_link(update: Update, context: ContextTypes.DEFAULT_TYPE
     return True
 
 
-async def _try_send_shrinkme_gate(send_fn, user, profile, lang="vi") -> bool:
-    """
-    Gửi gate shrinkme CHỈ cho user free. Admin / basic / pro → False (chạy trực tiếp).
-    True = đã gửi gate, caller dừng.
-    """
-    plan = (profile or {}).get("plan") or "free"
-    if user.id in ADMIN_IDS or not SHRINKME_API_KEY or plan != "free":
-        return False
-
-    token = _create_shrinkme_token(user.id)
-    deep_link = f"https://t.me/{BOT_USERNAME.lstrip('@')}?start=shrinkme_{token}"
-    loop = asyncio.get_event_loop()
-    short = await loop.run_in_executor(_executor, shrinkme_shorten, deep_link)
-    if not short:
-        await send_fn(
-            t("gate_maintenance", lang),
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
-        )
-        return True
-
-    await send_fn(
-        t("shrinkme_gate_msg", lang, url=short),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True,
-    )
-    return True
-
-
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.effective_message
     if not user or not msg:
-        return
-
-    # Liên kết web -> bot (user bấm deep link từ web: t.me/bot?start=link_XXXX)
-    text = (msg.text or "").strip()
-    if text.startswith("/start link_"):
-        token = text.split("link_", 1)[1]
-        link = get_telegram_link(token)
-        if not link:
-            await msg.reply_text(
-                t("link_invalid", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
-            return
-        if link.get("status") == "linked":
-            await msg.reply_text(
-                t("link_already", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
-            return
-        if link.get("status") == "expired" or _link_expired(link):
-            expire_telegram_link(token)
-            await msg.reply_text(
-                t("link_expired", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
-            return
-
-        web_user_id = link.get("web_user_id")
-        web_email = link.get("web_email") or "-"
-        if not web_user_id:
-            await msg.reply_text(
-                t("link_invalid", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
-            return
-
-        # Lưu pending xác nhận (chờ callback nút Yes/No)
-        _link_pending[user.id] = {"token": token, "web_user_id": web_user_id, "web_email": web_email}
-        # Hiện inline keyboard xác nhận email
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Xác nhận đúng email", callback_data=f"link_yes"),
-                InlineKeyboardButton("❌ Hủy", callback_data=f"link_no"),
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await msg.reply_text(
-            t("link_confirm_body", get_user_lang(user.id), email=web_email),
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup,
-        )
-        return
-
-    # Gate shrinkme pending (user quay lại từ link rút gọn)
-    if text.startswith("/start shrinkme_"):
-        token = text.split("shrinkme_", 1)[1]
-        if _pop_shrinkme_token(token, user.id):
-            profile = get_profile_by_telegram(user.id)
-            if profile:
-                lang = get_user_lang(user.id)
-                await _deliver_login_link(update, context, profile, lang)
-            else:
-                await msg.reply_text(
-                    t("not_linked", get_user_lang(user.id), web=WEB_URL),
-                    parse_mode=ParseMode.HTML,
-                )
-        else:
-            await msg.reply_text(
-                t("shrinkme_invalid", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
         return
 
     # Tìm profile theo telegram_id
@@ -369,19 +238,6 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await _send_welcome(update, profile, lang)
-
-
-def _link_expired(link):
-    """Token liên kết hết hạn chưa (TTL 10 phút)."""
-    import datetime
-    exp = link.get("expires_at")
-    if not exp:
-        return False
-    try:
-        exp_dt = datetime.datetime.fromisoformat(str(exp).replace("Z", "+00:00"))
-        return exp_dt < datetime.datetime.now(datetime.timezone.utc)
-    except Exception:
-        return False
 
 
 def _lang_keyboard():
@@ -443,51 +299,6 @@ async def on_lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _send_welcome(update, profile, lang, msg=query.message)
 
 
-async def on_link_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Xử lý callback nút xác nhận/hủy liên kết Telegram."""
-    query = update.callback_query
-    if not query or not query.data:
-        return
-    user = update.effective_user
-    if not user:
-        return
-    data = query.data  # "link_yes" hoặc "link_no"
-    pending = _link_pending.pop(user.id, None)
-    if not pending:
-        await query.answer()
-        await query.message.edit_text("Phiên xác nhận đã hết hoặc không tìm thấy.")
-        return
-    token = pending["token"]
-    web_user_id = pending["web_user_id"]
-    web_email = pending["web_email"]
-    if data == "link_yes":
-        # Xác nhận: bind telegram_id + mark linked
-        ok = bind_telegram_to_profile(web_user_id, user.id)
-        if ok:
-            mark_telegram_link_linked(token, user.id)
-            await query.answer("✅ Đã xác nhận!")
-            await query.message.edit_text(
-                t("link_success", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
-        else:
-            await query.answer("❌ Liên kết thất bại!", show_alert=True)
-            await query.message.edit_text(
-                t("link_failed", get_user_lang(user.id)),
-                parse_mode=ParseMode.HTML,
-            )
-    elif data == "link_no":
-        # Hủy: expire token
-        expire_telegram_link(token)
-        await query.answer("Đã hủy.")
-        await query.message.edit_text(
-            t("link_cancelled", get_user_lang(user.id)),
-            parse_mode=ParseMode.HTML,
-        )
-    else:
-        await query.answer("Lệnh không xác định.", show_alert=True)
-
-
 async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.effective_message
@@ -527,10 +338,6 @@ async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
             t("no_uses_left", lang),
             parse_mode=ParseMode.HTML,
         )
-        return
-
-    # Gate shrinkme CHỈ cho user free; basic/pro nhận link trực tiếp
-    if await _try_send_shrinkme_gate(msg.reply_text, user, profile, lang):
         return
 
     await _deliver_login_link(update, context, profile, lang)

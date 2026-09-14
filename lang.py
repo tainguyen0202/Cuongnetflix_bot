@@ -25,26 +25,8 @@ STRINGS = {
         "link_fail": "❌ Rất tiếc, hệ thống chưa thể tạo link ngay lúc này.\n\n💡 Vui lòng thử lại sau vài phút. Nếu vẫn không được, hãy liên hệ Admin để được hỗ trợ!",
         "no_live_cookie": "Hiện tại hệ thống chưa có tài khoản sẵn sàng. Vui lòng thử lại sau vài phút.",
 
-        "shrinkme_gate_msg": (
-            "🔐 <b>XÁC THỰC ĐỂ NHẬN LINK NETFLIX</b>\n"
-            "\n"
-            "💡 <i>Tài khoản free luôn cần vượt link. Nếu bạn có gói đang hoạt động, bot sẽ tự bỏ qua bước này.</i>\n\n"
-            "1️⃣ Copy link dưới đây và mở bằng trình duyệt ngoài (Chrome/Safari):\n"
-            "🔗 <code>{url}</code>\n\n"
-            "2️⃣ Đợi ~15-30s, hoàn tất các bước trên trang theo hướng dẫn\n"
-            "3️⃣ Hệ thống đưa bạn quay lại bot → nhận ngay link Netflix\n\n"
-            "💡 <i>Lỡ đóng trang? Copy lại link trên.\n"
-            "Chưa nhận được link Netflix? Gõ /loginlink để lấy link mới.</i>"
-        ),
-        "shrinkme_invalid": (
-            "⌛ Liên kết xác thực đã hết hạn hoặc đã được sử dụng.\n\n"
-            "👉 Vui lòng gõ /loginlink để lấy liên kết mới nhé!"
-        ),
-        "gate_maintenance": "⚠️ Hệ thống vượt link đang bảo trì. Vui lòng thử lại sau ít phút.",
-
         "link_header": "🎬 <b>NETFLIX LOGIN LINK</b>",
         "link_plan": "Plan: {plan}",
-        "link_your_plan": "Gói của bạn: {plan}",
         "link_mail": "Mail: {email}",
         "link_han": "Hạn: {billing}",
         "link_admin": "Liên Hệ: {admin}",
@@ -66,21 +48,6 @@ STRINGS = {
             "2️⃣ Vào trang <b>Hồ sơ</b>, bấm <b>Liên kết Telegram</b>\n"
             "3️⃣ Quay lại đây dùng /loginlink"
         ),
-
-        "link_invalid": "❌ Liên kết không hợp lệ hoặc đã bị xóa.\n\n👉 Vui lòng vào web và bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
-        "link_already": "✅ Tài khoản Telegram này đã được liên kết với tài khoản web.\n\n🍿 Gõ /loginlink để nhận link xem phim!",
-        "link_expired": "⌛ Liên kết đã hết hạn (10 phút).\n\n👉 Vui lòng vào web và bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
-        "link_success": (
-            "✅ <b>LIÊN KẾT THÀNH CÔNG!</b>\n\n"
-            "🎉 Tài khoản Telegram của bạn đã được liên kết với tài khoản web.\n\n"
-            "🍿 Gõ /loginlink để nhận link xem phim ngay!"
-        ),
-        "link_failed": "❌ Liên kết thất bại. Vui lòng thử lại sau ít phút hoặc liên hệ Admin.",
-        "link_confirm_title": "🔐 XÁC NHẬN LIÊN KẾT",
-        "link_confirm_body": "Bạn muốn liên kết tài khoản Telegram này với tài khoản web:\n📧 {email}\n\nĐúng email của bạn chứ?",
-        "link_confirm_yes": "✅ Xác nhận đúng email",
-        "link_confirm_no": "❌ Hủy",
-        "link_cancelled": "Đã hủy liên kết. Vào web bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
     },
     "en": {
         "lang_prompt": "🌐 Chọn ngôn ngữ / Choose language:",
@@ -104,26 +71,8 @@ STRINGS = {
         "link_fail": "❌ Sorry, the system could not create a link right now.\n\n💡 Please try again in a few minutes. If it still fails, contact Admin for support!",
         "no_live_cookie": "No accounts are available right now. Please try again in a few minutes.",
 
-        "shrinkme_gate_msg": (
-            "🔐 <b>VERIFY TO GET YOUR NETFLIX LINK</b>\n"
-            "\n"
-            "💡 <i>Free users always need to complete the gate. If you have an active plan, the bot skips this automatically.</i>\n\n"
-            "1️⃣ Copy the link below and open in an external browser (Chrome/Safari):\n"
-            "🔗 <code>{url}</code>\n\n"
-            "2️⃣ Wait ~15-30s and complete the steps on that page\n"
-            "3️⃣ You'll be brought back to the bot → get your Netflix link\n\n"
-            "💡 <i>Closed the page? Copy the link above.\n"
-            "No Netflix link yet? Type /loginlink to get a new one.</i>"
-        ),
-        "shrinkme_invalid": (
-            "⌛ The verification link has expired or was already used.\n\n"
-            "👉 Please type /loginlink to get a new one!"
-        ),
-        "gate_maintenance": "⚠️ The gate link system is under maintenance. Please try again later.",
-
         "link_header": "🎬 <b>NETFLIX LOGIN LINK</b>",
         "link_plan": "Plan: {plan}",
-        "link_your_plan": "Your plan: {plan}",
         "link_mail": "Mail: {email}",
         "link_han": "Billing: {billing}",
         "link_admin": "Contact: {admin}",
@@ -145,21 +94,6 @@ STRINGS = {
             "2️⃣ Go to <b>Profile</b>, tap <b>Link Telegram</b>\n"
             "3️⃣ Come back and use /loginlink"
         ),
-
-        "link_invalid": "❌ Invalid or removed link.\n\n👉 Please open the web and tap <b>Link Telegram</b> to create a new link.",
-        "link_already": "✅ This Telegram account is already linked to a web account.\n\n🍿 Type /loginlink to get a movie link!",
-        "link_expired": "⌛ This link has expired (10 minutes).\n\n👉 Please open the web and tap <b>Link Telegram</b> to create a new link.",
-        "link_success": (
-            "✅ <b>LINKED SUCCESSFULLY!</b>\n\n"
-            "🎉 Your Telegram account has been linked to your web account.\n\n"
-            "🍿 Type /loginlink to get a movie link now!"
-        ),
-        "link_failed": "❌ Linking failed. Please try again in a few minutes or contact Admin.",
-        "link_confirm_title": "🔐 CONFIRM LINK",
-        "link_confirm_body": "Do you want to link this Telegram account with your web account:\n📧 {email}\n\nIs this your correct email?",
-        "link_confirm_yes": "✅ Confirm email",
-        "link_confirm_no": "❌ Cancel",
-        "link_cancelled": "Linking cancelled. Open the web app and tap <b>Link Telegram</b> to create a new link.",
     },
 }
 
