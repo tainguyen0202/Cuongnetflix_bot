@@ -180,12 +180,14 @@ def _build_loginlink_message(link, payload, quota_left, quota_limit, lang="vi"):
 
 
 def _build_free_gate_message(shortened_link, lang="vi"):
-    """Tin nhắn gate cho user Free: hướng dẫn vượt link + nút inline tới shrinkme."""
+    """Tin nhắn gate cho user Free: link rút gọn dạng copyable + nút inline tới shrinkme."""
     admin_url = "https://t.me/" + ADMIN_TAG.lstrip("@")
     lines = [
         t("link_shrinkme_gate", lang),
         "",
         t("link_shrinkme_ad", lang),
+        "",
+        f"🔗 <code>{escape(shortened_link)}</code>",
         "",
         t("link_shrinkme_note", lang),
         "",

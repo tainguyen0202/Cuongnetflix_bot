@@ -42,13 +42,13 @@ STRINGS = {
         "link_shrinkme_gate": "🔗 <b>Link của bạn đã sẵn sàng!</b>",
         "link_shrinkme_ad": (
             "📢 Bạn đang dùng gói <b>Free</b> — cần vượt link rút gọn để lấy link đích:\n\n"
-            "1️⃣ Bấm nút <b>🔗 Lấy link (quảng cáo)</b> bên dưới\n"
+            "1️⃣ <b>Copy</b> link bên dưới & mở bằng <b>trình duyệt bên ngoài</b> (Chrome/Safari)\n"
             "2️⃣ Chờ 5 giây rồi bấm <b>Continue</b> / <b>Bỏ qua quảng cáo</b>\n"
             "3️⃣ Link Netflix thật sẽ hiện ra sau khi vượt link\n\n"
             "💎 Nâng cấp <b>Basic/Pro</b> để nhận link trực tiếp, không cần vượt quảng cáo!"
         ),
-        "link_shrinkme_btn": "🔗 Lấy link (quảng cáo)",
-        "link_shrinkme_note": "ℹ️ Gói Free: link được rút gọn qua shrinkme.io.",
+        "link_shrinkme_btn": "🔗 Mở link (quảng cáo)",
+        "link_shrinkme_note": "ℹ️ Gói Free: copy link ra trình duyệt bên ngoài để vượt.",
         "gate_error": "❌ <b>Hệ thống link vượt đang lỗi.</b>\n\nVui lòng thử lại sau ít phút. Nếu vẫn lỗi, hãy liên hệ Admin để được hỗ trợ!",
 
         "no_uses_left": "❌ Bạn đã hết lượt hôm nay.\n⏰ Quay lại sau 00:00 để lấy link mới.",
@@ -99,13 +99,13 @@ STRINGS = {
         "link_shrinkme_gate": "🔗 <b>Your link is ready!</b>",
         "link_shrinkme_ad": (
             "📢 You are on the <b>Free</b> plan — pass the shortened link to get the destination link:\n\n"
-            "1️⃣ Tap the <b>🔗 Get link (ads)</b> button below\n"
+            "1️⃣ <b>Copy</b> the link below & open it in an <b>external browser</b> (Chrome/Safari)\n"
             "2️⃣ Wait 5 seconds then press <b>Continue</b> / <b>Skip Ad</b>\n"
             "3️⃣ The real Netflix link will appear after you pass the gate\n\n"
             "💎 Upgrade to <b>Basic/Pro</b> to receive direct links, no ads!"
         ),
-        "link_shrinkme_btn": "🔗 Get link (ads)",
-        "link_shrinkme_note": "ℹ️ Free plan: link is shortened via shrinkme.io.",
+        "link_shrinkme_btn": "🔗 Open link (ads)",
+        "link_shrinkme_note": "ℹ️ Free plan: copy the link into an external browser to pass the gate.",
         "gate_error": "❌ <b>The link gate system is currently down.</b>\n\nPlease try again in a few minutes. If it still fails, contact Admin for support!",
 
         "no_uses_left": "❌ You have run out of uses today.\n⏰ Come back after 00:00 to get a new link.",
