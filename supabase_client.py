@@ -135,6 +135,48 @@ def get_profile_by_telegram(telegram_id):
         return None
 
 
+def get_or_create_profile(telegram_id, username=None, full_name=None):
+    """
+    Tìm profile theo telegram_id; nếu chưa có → tự tạo profile Free.
+    User bot KHÔNG bắt buộc liên kết web — mặc định gói Free (qua gate shrinkme).
+    Trả về dict profile hoặc None (lỗi).
+    """
+    if not telegram_id:
+        return None
+    profile = get_profile_by_telegram(telegram_id)
+    if profile:
+        return profile
+    client = _get_client()
+    if client is None:
+        return None
+    try:
+        row = {
+            "id": str(telegram_id),
+            "telegram_id": int(telegram_id),
+            "username": username or None,
+            "full_name": full_name or None,
+            "plan": "free",
+            "quota_limit": 0,
+            "links_used_today": 0,
+            "last_reset_date": _today_vn(),
+            "lang": "vi",
+            "status": "active",
+        }
+        res = (
+            client.table("profiles")
+            .upsert(row, on_conflict="id")
+            .execute()
+        )
+        rows = res.data or []
+        if rows:
+            return rows[0]
+        # RLS/service chặn RETURNING → query lại
+        return get_profile_by_telegram(telegram_id)
+    except Exception as e:
+        logger.warning("get_or_create_profile failed: %s", e)
+        return None
+
+
 def get_user_lang(telegram_id):
     """Đọc ngôn ngữ của user theo telegram_id. Mặc định 'vi'."""
     profile = get_profile_by_telegram(telegram_id)
@@ -253,6 +295,98 @@ def downgrade_expired(profile):
     except Exception as e:
         logger.warning("downgrade_expired failed: %s", e)
         return profile
+
+
+# ── Telegram links (liên kết web <-> bot) ──
+
+def get_telegram_link(token):
+    """Tra token trong bảng telegram_links. Trả về dict hoặc None."""
+    client = _get_client()
+    if client is None or not token:
+        return None
+    try:
+        res = (
+            client.table("telegram_links")
+            .select("*")
+            .eq("token", str(token))
+            .limit(1)
+            .execute()
+        )
+        rows = res.data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        logger.warning("get_telegram_link failed: %s", e)
+        return None
+
+
+def mark_telegram_link_linked(token, telegram_id):
+    """Đánh dấu token đã liên kết + ghi telegram_id. Trả về True/False."""
+    client = _get_client()
+    if client is None or not token or not telegram_id:
+        return False
+    try:
+        res = (
+            client.table("telegram_links")
+            .update({
+                "status": "linked",
+                "telegram_id": int(telegram_id),
+            })
+            .eq("token", str(token))
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:
+        logger.warning("mark_telegram_link_linked failed: %s", e)
+        return False
+
+
+def expire_telegram_link(token):
+    """Đánh dấu token hết hạn (user hủy hoặc quá hạn)."""
+    client = _get_client()
+    if client is None or not token:
+        return False
+    try:
+        res = (
+            client.table("telegram_links")
+            .update({"status": "expired"})
+            .eq("token", str(token))
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:
+        logger.warning("expire_telegram_link failed: %s", e)
+        return False
+
+
+def bind_telegram_to_profile(web_user_id, telegram_id):
+    """Ghi telegram_id vào profile web (liên kết 1 chiều). Trả về True/False."""
+    client = _get_client()
+    if client is None or not web_user_id or not telegram_id:
+        return False
+    try:
+        # Phòng ngừa unique constraint: xóa mọi profile KHÁC có cùng telegram_id
+        # (profile cũ từ bot cũ dùng id = telegram_id, hoặc profile trùng liên kết)
+        client.table("profiles").delete() \
+            .neq("id", web_user_id) \
+            .eq("telegram_id", int(telegram_id)) \
+            .execute()
+        client.table("profiles").delete() \
+            .neq("id", web_user_id) \
+            .eq("id", str(telegram_id)) \
+            .execute()
+        res = (
+            client.table("profiles")
+            .update({
+                "telegram_id": int(telegram_id),
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            })
+            .eq("id", web_user_id)
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as e:
+        logger.warning("bind_telegram_to_profile failed: %s", e)
+        return False
 
 
 def update_cookie_status(raw_line, status, country_code=None, plan_name=None, email=None):

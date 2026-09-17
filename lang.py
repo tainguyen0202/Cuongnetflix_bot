@@ -51,6 +51,15 @@ STRINGS = {
         "link_shrinkme_note": "ℹ️ Gói Free: copy link ra trình duyệt bên ngoài để vượt.",
         "gate_error": "❌ <b>Hệ thống link vượt đang lỗi.</b>\n\nVui lòng thử lại sau ít phút. Nếu vẫn lỗi, hãy liên hệ Admin để được hỗ trợ!",
 
+        "link_invalid": "❌ Liên kết không hợp lệ hoặc đã bị xóa.\n\n👉 Vui lòng vào web và bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
+        "link_already": "✅ Tài khoản Telegram này đã được liên kết với tài khoản web.\n\n🍿 Gõ /loginlink để nhận link xem phim!",
+        "link_expired": "⌛ Liên kết đã hết hạn (10 phút).\n\n👉 Vui lòng vào web và bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
+        "link_confirm_body": "🔐 <b>XÁC NHẬN LIÊN KẾT</b>\n\nBạn muốn liên kết tài khoản Telegram này với tài khoản web:\n📧 {email}\n\nĐúng email của bạn chứ?",
+        "link_success": "✅ <b>Liên kết thành công!</b>\n\n📧 Web: {email}\n\n🍿 Gói Basic/Pro trên web sẽ được đồng bộ — dùng /loginlink để nhận link trực tiếp, không cần vượt quảng cáo!",
+        "link_failed": "❌ Liên kết thất bại. Vui lòng thử lại sau ít phút hoặc liên hệ Admin.",
+        "link_cancelled": "❌ Đã hủy liên kết. Bạn có thể tạo liên kết mới bất cứ lúc nào từ web.",
+        "link_session_expired": "⌛ Phiên xác nhận đã hết. Vui lòng tạo liên kết mới từ web.",
+
         "no_uses_left": "❌ Bạn đã hết lượt hôm nay.\n⏰ Quay lại sau 00:00 để lấy link mới.",
         "rate_limited": "⏳ Bạn thao tác quá nhanh. Vui lòng đợi vài phút rồi thử lại.",
         "not_linked": (
@@ -107,6 +116,15 @@ STRINGS = {
         "link_shrinkme_btn": "🔗 Open link (ads)",
         "link_shrinkme_note": "ℹ️ Free plan: copy the link into an external browser to pass the gate.",
         "gate_error": "❌ <b>The link gate system is currently down.</b>\n\nPlease try again in a few minutes. If it still fails, contact Admin for support!",
+
+        "link_invalid": "❌ Invalid or removed link.\n\n👉 Please open the website and tap <b>Link Telegram</b> to create a new one.",
+        "link_already": "✅ This Telegram account is already linked to a web account.\n\n🍿 Type /loginlink to get a movie link!",
+        "link_expired": "⌛ The link has expired (10 minutes).\n\n👉 Please open the website and tap <b>Link Telegram</b> to create a new one.",
+        "link_confirm_body": "🔐 <b>CONFIRM LINKING</b>\n\nDo you want to link this Telegram account with the web account:\n📧 {email}\n\nIs this your email?",
+        "link_success": "✅ <b>Linked successfully!</b>\n\n📧 Web: {email}\n\n🍿 Your Basic/Pro plan from the web will be synced — use /loginlink to get direct links, no ads!",
+        "link_failed": "❌ Linking failed. Please try again in a few minutes or contact Admin.",
+        "link_cancelled": "❌ Linking cancelled. You can create a new link anytime from the website.",
+        "link_session_expired": "⌛ Confirmation session expired. Please create a new link from the website.",
 
         "no_uses_left": "❌ You have run out of uses today.\n⏰ Come back after 00:00 to get a new link.",
         "rate_limited": "⏳ You are acting too fast. Please wait a few minutes and try again.",

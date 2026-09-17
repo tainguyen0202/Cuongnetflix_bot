@@ -5,6 +5,7 @@ Only /start and /loginlink. Quota + plan live on Supabase (web-managed).
 """
 
 import asyncio
+import datetime
 import logging
 import random
 import time
@@ -24,13 +25,18 @@ from config import (
 )
 from lang import t
 from supabase_client import (
+    bind_telegram_to_profile,
     consume_quota,
     delete_cookie,
     downgrade_expired,
+    expire_telegram_link,
     get_cookie_pool,
+    get_or_create_profile,
     get_profile_by_telegram,
     get_quota_left,
+    get_telegram_link,
     get_user_lang,
+    mark_telegram_link_linked,
     set_user_lang,
     update_cookie_status,
 )
@@ -42,6 +48,15 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 # ── Rate limit: 5 lần/15 phút/user ──
 _rate = {}  # user_id -> [timestamps]
+
+# ── Pending telegram link confirmations ──
+# telegram_id -> {"token": str, "web_user_id": str, "web_email": str, "created": float}
+_link_pending = {}
+_LINK_PENDING_TTL = 10 * 60  # 10 phút, khớp TTL token
+
+
+def _link_pending_expired(pending):
+    return (time.time() - pending.get("created", 0)) > _LINK_PENDING_TTL
 
 
 def _rate_limited(key, user_id, limit=5, window=15 * 60):
@@ -262,13 +277,58 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user or not msg:
         return
 
-    # Tìm profile theo telegram_id
-    profile = get_profile_by_telegram(user.id)
+    # ── Liên kết web -> bot (user bấm deep link từ web: t.me/bot?start=link_XXXX) ──
+    text = (msg.text or "").strip()
+    if text.startswith("/start link_"):
+        token = text.split("link_", 1)[1]
+        lang = get_user_lang(user.id)
+        link = get_telegram_link(token)
+        if not link:
+            await msg.reply_text(t("link_invalid", lang), parse_mode=ParseMode.HTML)
+            return
+        if link.get("status") == "linked":
+            await msg.reply_text(t("link_already", lang), parse_mode=ParseMode.HTML)
+            return
+        expires_at = link.get("expires_at")
+        if link.get("status") == "expired" or (
+            expires_at and _iso_older_than_now(expires_at)
+        ):
+            expire_telegram_link(token)
+            await msg.reply_text(t("link_expired", lang), parse_mode=ParseMode.HTML)
+            return
+
+        web_user_id = link.get("web_user_id")
+        web_email = link.get("web_email") or "-"
+        if not web_user_id:
+            await msg.reply_text(t("link_invalid", lang), parse_mode=ParseMode.HTML)
+            return
+
+        # Lưu pending + hiện nút xác nhận đúng email (chống người khác chiếm tài khoản)
+        _link_pending[user.id] = {
+            "token": token,
+            "web_user_id": web_user_id,
+            "web_email": web_email,
+            "created": time.time(),
+        }
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Đúng, liên kết", callback_data="link_yes"),
+             InlineKeyboardButton("❌ Hủy", callback_data="link_no")],
+        ])
+        await msg.reply_text(
+            t("link_confirm_body", lang, email=escape(web_email)),
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+        return
+
+    # Profile: tìm theo telegram_id, chưa có → tự tạo Free (bot dùng ngay, không bắt buộc web)
+    profile = get_or_create_profile(
+        user.id, username=user.username, full_name=user.first_name
+    )
     if not profile:
         await msg.reply_text(
-            t("not_linked", get_user_lang(user.id), web=WEB_URL),
+            t("link_failed", get_user_lang(user.id)),
             parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
         )
         return
 
@@ -307,6 +367,63 @@ async def _send_welcome(update: Update, profile, lang="vi", msg=None):
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
+
+
+def _iso_older_than_now(iso_str):
+    """Check chuỗi ISO time đã qua chưa (cho expires_at)."""
+    try:
+        dt = datetime.datetime.fromisoformat(str(iso_str).replace("Z", "+00:00"))
+        return dt < datetime.datetime.now(datetime.timezone.utc)
+    except Exception:
+        return True
+
+
+async def on_link_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Xử lý callback nút xác nhận/hủy liên kết Telegram (link_yes / link_no)."""
+    query = update.callback_query
+    if not query or not query.data:
+        return
+    user = update.effective_user
+    if not user:
+        return
+    await query.answer()
+    data = query.data  # "link_yes" hoặc "link_no"
+    pending = _link_pending.pop(user.id, None)
+    if not pending or _link_pending_expired(pending):
+        try:
+            await query.message.edit_text(t("link_session_expired", get_user_lang(user.id)))
+        except Exception:
+            pass
+        return
+    token = pending["token"]
+    web_user_id = pending["web_user_id"]
+    web_email = pending["web_email"]
+    lang = get_user_lang(user.id)
+
+    if data == "link_yes":
+        # Xác nhận: bind telegram_id vào profile web + mark token linked
+        ok = bind_telegram_to_profile(web_user_id, user.id)
+        if ok:
+            mark_telegram_link_linked(token, user.id)
+            try:
+                await query.message.edit_text(
+                    t("link_success", lang, email=escape(web_email)),
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                pass
+        else:
+            try:
+                await query.message.edit_text(t("link_failed", lang), parse_mode=ParseMode.HTML)
+            except Exception:
+                pass
+    elif data == "link_no":
+        # Hủy: expire token để web poll thấy expired
+        expire_telegram_link(token)
+        try:
+            await query.message.edit_text(t("link_cancelled", lang))
+        except Exception:
+            pass
 
 
 async def cmd_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -359,13 +476,14 @@ async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Tìm profile theo telegram_id
-    profile = get_profile_by_telegram(user.id)
+    # Profile: tìm hoặc tự tạo Free (bot dùng ngay, không bắt buộc liên kết web)
+    profile = get_or_create_profile(
+        user.id, username=user.username, full_name=user.first_name
+    )
     if not profile:
         await msg.reply_text(
-            t("not_linked", lang, web=WEB_URL),
+            t("link_failed", lang),
             parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
         )
         return
 
