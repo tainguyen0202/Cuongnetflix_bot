@@ -20,6 +20,7 @@ from config import (
     ADMIN_IDS,
     ADMIN_TAG,
     WEB_URL,
+    SHRINKME_API_KEY,
 )
 from lang import t
 from supabase_client import (
@@ -33,6 +34,7 @@ from supabase_client import (
     set_user_lang,
     update_cookie_status,
 )
+from shrinkme import shorten
 
 logger = logging.getLogger("NetflixBot")
 
@@ -177,6 +179,24 @@ def _build_loginlink_message(link, payload, quota_left, quota_limit, lang="vi"):
     return "\n".join(lines)
 
 
+def _build_free_gate_message(shortened_link, lang="vi"):
+    """Tin nhắn gate cho user Free: hướng dẫn vượt link + nút inline tới shrinkme."""
+    admin_url = "https://t.me/" + ADMIN_TAG.lstrip("@")
+    lines = [
+        t("link_shrinkme_gate", lang),
+        "",
+        t("link_shrinkme_ad", lang),
+        "",
+        t("link_shrinkme_note", lang),
+        "",
+        t("link_admin", lang, admin=f'<a href="{admin_url}">Admin</a>'),
+    ]
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("link_shrinkme_btn", lang), url=shortened_link)],
+    ])
+    return "\n".join(lines), keyboard
+
+
 async def _deliver_login_link(update: Update, context: ContextTypes.DEFAULT_TYPE, profile, lang="vi"):
     """Tạo + gửi link đăng nhập. Trừ quota nếu basic/pro."""
     user = update.effective_user
@@ -195,6 +215,28 @@ async def _deliver_login_link(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode=ParseMode.HTML,
         )
         return False
+
+    # Áp dụng shrinkme gate cho free users — FAIL-CLOSED: API lỗi → báo lỗi hệ thống
+    # link vượt, KHÔNG fallback link gốc (yêu cầu nghiệp vụ).
+    plan = profile.get("plan") or "free"
+    if plan == "free":
+        # shorten() là I/O blocking → chạy trong executor để không chặn event loop
+        loop = asyncio.get_event_loop()
+        shortened = await loop.run_in_executor(_executor, shorten, link)
+        if not shortened:
+            await searching.edit_text(
+                t("gate_error", lang),
+                parse_mode=ParseMode.HTML,
+            )
+            return False
+        gate_text, gate_keyboard = _build_free_gate_message(shortened, lang)
+        await searching.edit_text(
+            gate_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=gate_keyboard,
+            disable_web_page_preview=True,
+        )
+        return True
 
     # Trừ quota (chỉ basic/pro)
     quota_left = get_quota_left(profile)
