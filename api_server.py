@@ -116,7 +116,7 @@ def _build_device_links(token):
 def _check_and_link(cookie_line):
     """Check a cookie and generate a real NFToken + 3-device links."""
     from checker import check_cookie, generate_nftoken
-    from supabase_client import delete_cookie, update_cookie_status
+    from supabase_client import update_cookie_status
 
     parts = _parse_cookie_parts(cookie_line)
     if not parts.get("NetflixId"):
@@ -125,9 +125,9 @@ def _check_and_link(cookie_line):
     info = check_cookie(parts["NetflixId"], parts.get("SecureNetflixId"))
     status = info.get("status")
 
-    # Cookie DEAD → xóa khỏi Supabase
+    # Cookie DEAD → đánh dấu dead trên Supabase
     if status == "DEAD":
-        delete_cookie(cookie_line)
+        update_cookie_status(cookie_line, "dead", dead_reason=info.get("status"))
     elif status == "LIVE":
         # Upsert check result to Supabase so the web map reflects real status
         update_cookie_status(

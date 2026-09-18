@@ -27,7 +27,6 @@ from lang import t
 from supabase_client import (
     bind_telegram_to_profile,
     consume_quota,
-    delete_cookie,
     downgrade_expired,
     expire_telegram_link,
     get_cookie_pool,
@@ -114,13 +113,13 @@ def _find_and_generate_login_link():
         status = info.get("status")
 
         if status == "DEAD":
-            delete_cookie(raw)
+            update_cookie_status(raw, "dead", dead_reason=info.get("status"))
             continue
         if status == "ERROR":
             time.sleep(1)
             continue
         if str(info.get("membershipStatus", "")).upper() == "FORMER_MEMBER":
-            delete_cookie(raw)
+            update_cookie_status(raw, "dead", dead_reason="FORMER_MEMBER")
             continue
 
         # Cookie LIVE — build cookie dict + gen nftoken

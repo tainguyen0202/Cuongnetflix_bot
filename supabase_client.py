@@ -389,7 +389,7 @@ def bind_telegram_to_profile(web_user_id, telegram_id):
         return False
 
 
-def update_cookie_status(raw_line, status, country_code=None, plan_name=None, email=None):
+def update_cookie_status(raw_line, status, country_code=None, plan_name=None, email=None, dead_reason=None):
     """Cập nhật trạng thái cookie lên Supabase (sau khi check)."""
     client = _get_client()
     if client is None or not raw_line:
@@ -398,6 +398,8 @@ def update_cookie_status(raw_line, status, country_code=None, plan_name=None, em
         "status": status,
         "last_checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
+    if dead_reason:
+        fields["dead_reason"] = dead_reason
     if country_code:
         fields["country_code"] = country_code.upper()
     if plan_name:
@@ -411,7 +413,7 @@ def update_cookie_status(raw_line, status, country_code=None, plan_name=None, em
 
 
 def delete_cookie(raw_line):
-    """Xóa cookie DEAD khỏi Supabase."""
+    """Deprecated: use update_cookie_status(raw_line, 'dead') instead. Xóa cookie DEAD khỏi Supabase."""
     client = _get_client()
     if client is None or not raw_line:
         return
