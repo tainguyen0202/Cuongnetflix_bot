@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "justrunmy.app": {
+      "url": "https://justrunmy.app/api/mcp",
+      "headers": {
+        "X-User-Identity": "CfDJ8OJj33e2MidEmv/zWgEBADNM9cxD/vBn/rqV7WcJie4\u002BqhM\u002B/U0Czm2icTbz4Zq2WHC/qWrFyYHEIEpPahLocoluhqkSiW1qH/6qHK5w6NxXTQJ7w2VOMnhJwLE5ijODRWVonZg6UOXn46cm1ygt3ZodUys382pOqPi7BLTj\u002BonvIghfhrHJrj/wBwqQ9XhrOe/mkX3UvDn61qKpFVVESQPUm8rQ6ARLsniY5yzrOBXitYVdFuiTzFVXywLXuCBAr/G6H4WmcArbz45IU2xWH5YiRPTK1DJtHLW53roxlv4qKMhrj2OEXh8ma24jUc0PyWi4VmbRYnK9loAIGn/yObDSMzEQ\u002BMQVB9yWkKC2dELCGlmcRPUQd7GTG9vn/nForVwPOYOSo3QaaL/9n4N0l7G3K67tD7hdKVj1mv4LXILA/\u002BQD15RUjYaPIKAI19k0Zq0F3rY1J0dYIC9axxCxkLuMVqXcRbts3FmL5Wkk5uMAflawcK4NHUE\u002BMFLHdEJTG0Yv4Qvuw5eDoSErwoer35\u002Bxd\u002BBAYpVFoTnQpQh977n9DH\u002BkAaRKftN6MoZbZVTNdfXgZa90foDU6eUer0mtKOKbIJSp/kbtbasNp3vFLqn\u002B8TNTVEGUbc\u002BQE4Qg9cxDTyrpmNfxBtFzvqWbEo\u002BnzcpGWAfAvPZkETdau2ikemSeJp/7QdIByT24s8WsoZDbopSpYAyg4zUDow\u002BdUlixfxSyzVAUPvJmqyr\u002BwG\u002BAZ4BOL2VrEvGCDMxVQDYmnB\u002Br1SF5BvqKXKcLTU8Afmlxf0HRnpd4BUJ\u002BTyr\u002BydI2hJXA17RhvzLSUg6DrGpv4s4FS6oLfWKQ1yiOWziYrd/Q3aiI\u002Bzspts0yIprwQvtZjtOb"
+      }
+    }
+  }
+}

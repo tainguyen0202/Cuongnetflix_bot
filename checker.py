@@ -351,10 +351,10 @@ def parse_account_info(decoded_html):
     if has_any_info:
         return result  # Có thông tin → LIVE
     
-    # Không có membershipStatus rõ ràng VÀ không có thông tin gì → DEAD
+    # Nếu membershipStatus là "-" VÀ không có thông tin gì → DEAD
     logger.info(f"Cookie appears DEAD - no valid account information found (membership={membership})")
     result["status"] = "DEAD"
-    result["dead_reason"] = "No valid cookies found"
+    result["dead_reason"] = "parse_failed"
     return result
 
 
@@ -465,10 +465,13 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
             pass
 
         # DEAD: final URL chứa "login" nhưng KHÔNG chứa "account"
-        # (cùng logic với net_fixed.py)
+        # Kiểm tra thêm: nếu cookies SecureNetflixId/NetflixId bị lấy đi → DEAD
         final_url = str(getattr(r, 'url', '') or '').lower()
         if "login" in final_url and "account" not in final_url:
-            return {"status": "DEAD", "dead_reason": "Cookies expired (redirected to login)"}
+            new_cookies_dict = {c.name for c in r.cookies}
+            if "SecureNetflixId" not in new_cookies_dict and "NetflixId" not in new_cookies_dict:
+                return {"status": "DEAD", "dead_reason": "redirect_login"}
+            # Cookies still present → not dead, just redirect, fall through to parse page
 
         # Parse the page
         decoded = decode_response(r.text or "")
@@ -481,7 +484,7 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
         # DEAD: account has no active membership (giống net_fixed.py)
         membership = info.get("membershipStatus", "-")
         if membership in ("ANONYMOUS", "FORMER_MEMBER", "NON_MEMBER", "NEVER_MEMBER"):
-            return {"status": "DEAD", "dead_reason": f"Membership: {membership}"}
+            return {"status": "DEAD", "dead_reason": f"membership_expired: {membership}"}
 
         # Extract nfvdid
         nfvdid_match = re.search(r'"nfvdid"\s*:\s*"([^"]+)"', decoded)
@@ -632,25 +635,9 @@ def validate_nftoken(token, timeout=REQUEST_TIMEOUT):
             return None
 
         new_nid = session.cookies.get("NetflixId")
-        if not new_nid:
-            return False
-
-        # Server set NetflixId mới → kiểm tra session đó có phải account thật
-        new_sid = session.cookies.get("SecureNetflixId")
-        extra = {
-            "gsid": session.cookies.get("gsid"),
-            "nfvdid": session.cookies.get("nfvdid"),
-        }
-        info = check_cookie(
-            new_nid,
-            new_sid,
-            extra_cookies={k: v for k, v in extra.items() if v},
-        )
-        if info.get("status") == "LIVE":
+        if new_nid:
             return True
-        if info.get("status") == "DEAD":
-            return False
-        return None
+        return False
     except Exception as e:
         logger.warning(f"validate_nftoken error: {e}")
         return None
