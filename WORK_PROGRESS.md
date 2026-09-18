@@ -47,6 +47,13 @@ service).
     - Test end-to-end: tạo token → gán telegram_id (không 409) → linked → poll OK.
     - Deploy bot lên JustRunMy.App (rebuild + restart). Verify bot logs: 2026 cookies
       loaded, polling OK, không lỗi.
+- **2026-09-18 (tối ưu tốc độ ra link nftoken)**:
+  - Bỏ `validate_nftoken()` khỏi luồng chính trong `handlers.py` để giảm độ trễ.
+  - Luồng hiện tại: chọn cookie → `check_cookie()` → `generate_nftoken()` → trả link/login.
+  - Giữ hàm `validate_nftoken()` trong `checker.py` để dùng lại sau nếu cần.
+  - Web vẫn gọi `/api/check-cookie` như cũ; phản hồi nhận token + link nhanh hơn.
+  - Đã push `main` + `build` lên JustRunMy.App, rebuild image và restart app `62239`.
+  - Verify container: `/app/handlers.py` không còn gọi `validate_nftoken()`.
 
 ## Deploy
 - Bot mới đã deploy lên JustRunMy.App (port 8081).
