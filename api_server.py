@@ -144,6 +144,7 @@ def _check_and_link(cookie_line):
         "plan": info.get("plan"),
         "email": info.get("email"),
         "membershipStatus": info.get("membershipStatus"),
+        "isShortened": True,
     }
 
     if status == "LIVE":

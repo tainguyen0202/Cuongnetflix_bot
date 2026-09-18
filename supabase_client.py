@@ -257,14 +257,19 @@ def consume_quota(profile):
         "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     try:
+        # Atomic: only update if links_used_today < limit (prevent race condition)
         res = (
             client.table("profiles")
             .update(updated)
             .eq("id", profile["id"])
+            .lt("links_used_today", limit)
             .execute()
         )
         rows = res.data or []
-        return rows[0] if rows else {**profile, **updated}
+        if rows:
+            return rows[0]
+        # Quota was exhausted by another request — return None
+        return None
     except Exception as e:
         logger.warning("consume_quota failed: %s", e)
         return None

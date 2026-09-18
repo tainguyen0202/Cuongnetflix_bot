@@ -257,10 +257,32 @@ async def _deliver_login_link(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Trừ quota (chỉ basic/pro)
     quota_left = get_quota_left(profile)
     quota_limit = int(profile.get("quota_limit") or 0)
-    if profile.get("plan") not in (None, "free"):
+    if profile.get("plan") not in (None, "free") and quota_left > 0:
         updated = consume_quota(profile)
         if updated:
             quota_left = get_quota_left(updated)
+        else:
+            # Quota exhausted — go through shrinkme gate (like free)
+            plan = "free"
+
+    # FREE or quota-exhausted basic/pro → shrinkme gate
+    if plan == "free":
+        loop = asyncio.get_event_loop()
+        shortened = await loop.run_in_executor(_executor, shorten, link)
+        if not shortened:
+            await searching.edit_text(
+                t("gate_error", lang),
+                parse_mode=ParseMode.HTML,
+            )
+            return False
+        gate_text, gate_keyboard = _build_free_gate_message(shortened, lang)
+        await searching.edit_text(
+            gate_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=gate_keyboard,
+            disable_web_page_preview=True,
+        )
+        return True
 
     await searching.edit_text(
         _build_loginlink_message(link, payload, quota_left, quota_limit, lang),
@@ -493,12 +515,5 @@ async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     quota_left = get_quota_left(profile)
     quota_limit = int(profile.get("quota_limit") or 0)
     plan = profile.get("plan") or "free"
-
-    if plan not in (None, "free") and quota_left <= 0:
-        await msg.reply_text(
-            t("no_uses_left", lang),
-            parse_mode=ParseMode.HTML,
-        )
-        return
 
     await _deliver_login_link(update, context, profile, lang)
