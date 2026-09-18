@@ -35,7 +35,7 @@ proxies.py            — proxy pool
 - **Shrinkme gate logic**: Free user → shrinkme gate (rút gọn link); Basic/Pro có quota → link trực tiếp; Basic/Pro không còn quota → shrinkme gate. Backend quyết định `isShortened` và trả về trong response.
 - **Atomic quota**: `consume_quota()` sử dụng `.lt("links_used_today", limit)` để đảm bảo atomicity — tránh race condition khi nhiều request cùng lúc.
 - **Dead cookie handling**: Khi cookie chết, gọi `update_cookie_status(status="dead", dead_reason="...")` thay vì `delete_cookie()` — giữ lại record để audit. `dead_reason` giá trị: `redirect_login`, `parse_failed`, `expired_token`, `membership_expired`, `region_blocked`, `http_error`.
-- **`validate_nftoken()`**: Kiểm tra `session.cookies.get("NetflixId")` thay vì gọi `check_cookie()`.
+- **`validate_nftoken()`**: Giữ lại nhưng tạm bỏ khỏi luồng chính để tối ưu tốc độ trả link nftoken.
 - **`check_cookie()` redirect check**: Kiểm tra HTTP status + session cookie để xác định cookie có bị redirect login hay không.
 - Telegram link: token single-use, TTL 10 phút, bind web_user_id; bot ghi telegram_id
   bằng service_role (không cần gọi API web).

@@ -608,6 +608,7 @@ def validate_nftoken(token, timeout=REQUEST_TIMEOUT):
     """
     Xác thực nftoken bằng luồng web: GET /login?nftoken=<token> → follow redirect
     → check session NetflixId mới server vừa tạo.
+    Lưu ý: tạm tắt trong luồng chính để tối ưu tốc độ ra link.
     Đã test thật (2026-07-31) với token iOS Argo API:
     - Token hợp lệ: 302 /hk-en/login → 200, server set NetflixId MỚI = session
       account thật (check_cookie → LIVE) → True

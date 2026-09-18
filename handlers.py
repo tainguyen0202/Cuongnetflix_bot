@@ -87,10 +87,11 @@ def _build_device_links(link):
 
 def _find_and_generate_login_link():
     """
-    Chọn cookie ngẫu nhiên từ pool (Supabase) → check → gen NFToken → validate.
+    Chọn cookie ngẫu nhiên từ pool (Supabase) → check → gen NFToken → trả link.
+    Bỏ validate nftoken để ra link nhanh nhất (token từ Argo iOS đã đủ tin cậy).
     Returns (link, error, payload).
     """
-    from checker import parse_cookie_line, check_cookie, generate_nftoken, validate_nftoken
+    from checker import parse_cookie_line, check_cookie, generate_nftoken
 
     pool = get_cookie_pool()
     if not pool:
@@ -139,11 +140,6 @@ def _find_and_generate_login_link():
             "email": info.get("email") or "-",
             "billing": info.get("billing") or "-",
         }
-
-        # Validate token (không chặn nếu unknown)
-        v = validate_nftoken(token)
-        if v is False:
-            continue
 
         # Cập nhật trạng thái cookie lên Supabase
         update_cookie_status(
