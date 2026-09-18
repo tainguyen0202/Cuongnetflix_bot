@@ -32,11 +32,16 @@ proxies.py            — proxy pool
 
 ## Key Technical Decisions
 - Supabase service_role key = full access (bot backend). Web dùng anon/authenticated.
-- Quota: free → 0 (phải qua gate shrinkme); basic/pro → quota_limit/ngày, reset theo giờ VN.
-- Plan hết hạn 30 ngày → tự downgrade free khi dùng /loginlink.
+- **Shrinkme gate logic**: Free user → shrinkme gate (rút gọn link); Basic/Pro có quota → link trực tiếp; Basic/Pro không còn quota → shrinkme gate. Backend quyết định `isShortened` và trả về trong response.
+- **Atomic quota**: `consume_quota()` sử dụng `.lt("links_used_today", limit)` để đảm bảo atomicity — tránh race condition khi nhiều request cùng lúc.
+- **Dead cookie handling**: Khi cookie chết, gọi `update_cookie_status(status="dead", dead_reason="...")` thay vì `delete_cookie()` — giữ lại record để audit. `dead_reason` giá trị: `redirect_login`, `parse_failed`, `expired_token`, `membership_expired`, `region_blocked`, `http_error`.
+- **`validate_nftoken()`**: Kiểm tra `session.cookies.get("NetflixId")` thay vì gọi `check_cookie()`.
+- **`check_cookie()` redirect check**: Kiểm tra HTTP status + session cookie để xác định cookie có bị redirect login hay không.
 - Telegram link: token single-use, TTL 10 phút, bind web_user_id; bot ghi telegram_id
   bằng service_role (không cần gọi API web).
 - Rate limit /loginlink: 5 lần/15 phút/user.
+- Quota: free → 0 (phải qua gate shrinkme); basic/pro → quota_limit/ngày, reset theo giờ VN.
+- Plan hết hạn 30 ngày → tự downgrade free khi dùng /loginlink.
 
 ## Env (set trên JustRunMy.App)
 - `BOT_TOKEN`, `BOT_USERNAME`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
