@@ -63,3 +63,9 @@ service).
 - `cookie.txt` 21MB đã bị xóa cùng bot cũ — không còn file cookie cục bộ nào.
 - Proxy pool (`proxies.py` + `PROXY_URLS.txt`) vẫn load được (17 live proxy khi dừng service cũ).
 - Bot mới chỉ load cookie từ Supabase, KHÔNG đọc file cục bộ.
+
+- **2026-09-18 (Netflix-only cookie pool complete)**:
+  - Import 12,039 Netflix cookie từ `Web-cuongnetflix/Cookies/` vào Supabase `cookies` table.
+  - DB `cookies` table: 17,013 unknown + 10 green + 640 dead = ~17,663 rows, tất cả `website_name='Netflix'`.
+  - Xóa local `Web-cuongnetflix/Cookies/` (2997 dirs, 18,798 txt files).
+  - Cookie pool Supabase hiện tại đủ cho bot rải link liên tục.
