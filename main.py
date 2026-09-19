@@ -32,6 +32,7 @@ from handlers import (
     on_lang_callback,
     on_link_confirm_callback,
 )
+from proxies import start_proxy_scanner
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s | %(message)s",
@@ -91,6 +92,7 @@ def main():
     total = load_cookies_from_supabase()
     logger.info("Ready! %d cookies loaded from Supabase.", total)
     _start_cookie_reloader()
+    start_proxy_scanner()
 
     request = HTTPXRequest(
         connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0,

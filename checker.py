@@ -359,7 +359,32 @@ def parse_account_info(decoded_html):
 
 
 def _parse_cookie_input(raw):
-    decoded = unquote((raw or "").strip())
+    raw_text = (raw or "").strip()
+
+    # NETSCAPE format: .netflix.com\tFALSE\t/\tFALSE\texpiry\tNetflixId\tvalue
+    # (file Hydra / trình duyệt export / import-netflix-cookies.ts).
+    # Phải xử lý TRƯỚC nhánh unquote vì Netscape không chứa "NetflixId=".
+    if "\t" in raw_text and "NetflixId" in raw_text:
+        for line in raw_text.split("\n"):
+            f = line.strip().split("\t")
+            if len(f) >= 7 and f[5] == "NetflixId":
+                nid = f[6].strip()
+                sid = None
+                for lf in raw_text.split("\n"):
+                    lf_parts = lf.strip().split("\t")
+                    if len(lf_parts) >= 7 and lf_parts[5] == "SecureNetflixId":
+                        sid = lf_parts[6].strip()
+                        break
+                extras = {}
+                for lf in raw_text.split("\n"):
+                    lf_parts = lf.strip().split("\t")
+                    if len(lf_parts) >= 7 and lf_parts[5] == "nfvdid":
+                        extras["nfvdid"] = lf_parts[6].strip()
+                        break
+                return nid, sid, extras
+        # Có "NetflixId" nhưng parse được index → thử tiếp nhánh dưới
+
+    decoded = unquote(raw_text)
     netflix_id = None
     secure_id = None
     extras = {}
@@ -416,6 +441,31 @@ def parse_cookie_line(raw_line):
 
 
 def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
+    """Wrapper chống dead-oan: verdict DEAD phải được xác nhận bởi IP thứ hai
+    khác IP lần check đầu. direct=True giữ nguyên hành vi cũ (verdict thô)."""
+    info = _check_cookie_impl(netflix_id, secure_id, extra_cookies, direct)
+    if direct or info.get("status") != "DEAD":
+        return info
+    used = info.pop("_proxy_used", None)
+    confirm = _check_cookie_impl(netflix_id, secure_id, extra_cookies, False, True, used)
+    cstatus = confirm.get("status")
+    confirm.pop("_proxy_used", None)
+    if cstatus == "DEAD":
+        logger.info("check_cookie: DEAD confirmed by 2nd IP (first used proxy=%s)", bool(used))
+        info["dead_reason"] = (str(info.get("dead_reason") or "") + " [xác nhận bởi IP thứ 2]").strip()
+        return info
+    if cstatus == "LIVE":
+        logger.info("check_cookie: DEAD overturned - 2nd IP says LIVE (first IP flagged)")
+        confirm["note"] = "Verdict DEAD từ IP đầu đã bị đảo ngược (IP đầu bị flag)"
+        return confirm
+    logger.info("check_cookie: DEAD unconfirmable via 2nd IP -> ERROR (avoid dead-oan)")
+    info["status"] = "ERROR"
+    info["error"] = "DEAD chưa xác minh được từ IP thứ hai - tránh dead oan"
+    info.pop("dead_reason", None)
+    return info
+
+
+def _check_cookie_impl(netflix_id, secure_id=None, extra_cookies=None, direct=False, _force_proxy=False, _avoid_proxy=None):
     """Check cookie status - matched with net_fixed.py logic for accuracy.
 
     direct=True → chỉ gọi thẳng IP VPS (không proxy), dùng để xác minh lại
@@ -443,10 +493,19 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
         )
 
     try:
-        if direct:
+        used = None
+        if _force_proxy:
+            _p = None
+            for _i in range(4):
+                _cand = get_proxy()
+                if _cand is None or _cand != _avoid_proxy:
+                    _p = _cand
+                    break
+            r = _do_request(_p)
+        elif direct:
             r = _do_request(None)
         else:
-            r, _ = _try_request(_do_request)
+            r, used = _try_request(_do_request)
 
         # HTTP guard: IP bị throttle / lỗi server → ERROR, không đánh DEAD oan
         if r.status_code in (403, 429):
@@ -470,7 +529,7 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
         if "login" in final_url and "account" not in final_url:
             new_cookies_dict = {c.name for c in r.cookies}
             if "SecureNetflixId" not in new_cookies_dict and "NetflixId" not in new_cookies_dict:
-                return {"status": "DEAD", "dead_reason": "redirect_login"}
+                return {"status": "DEAD", "dead_reason": "redirect_login", "_proxy_used": used}
             # Cookies still present → not dead, just redirect, fall through to parse page
 
         # Parse the page
@@ -479,12 +538,13 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
 
         # Nếu parse_account_info đã phát hiện DEAD thì return luôn
         if info.get("status") == "DEAD":
+            info["_proxy_used"] = used
             return info
 
         # DEAD: account has no active membership (giống net_fixed.py)
         membership = info.get("membershipStatus", "-")
         if membership in ("ANONYMOUS", "FORMER_MEMBER", "NON_MEMBER", "NEVER_MEMBER"):
-            return {"status": "DEAD", "dead_reason": f"membership_expired: {membership}"}
+            return {"status": "DEAD", "dead_reason": f"membership_expired: {membership}", "_proxy_used": used}
 
         # Extract nfvdid
         nfvdid_match = re.search(r'"nfvdid"\s*:\s*"([^"]+)"', decoded)
@@ -583,9 +643,29 @@ def generate_nftoken(cookie_dict):
                 proxies={"https": proxy, "http": proxy} if proxy else None,
             )
 
-        response, _ = _try_request(_do_get)
-        if response.status_code != 200:
-            return None, f"HTTP {response.status_code}"
+        response = None
+        try:
+            response = _do_get(None)
+            if response is not None and response.status_code == 200:
+                pass
+            else:
+                if response is not None:
+                    last_err = f"HTTP {response.status_code}"
+                response = None
+        except Exception:
+            response = None
+        if response is None:
+            for _attempt in range(3):
+                response, _ = _try_request(_do_get)
+                if response is None:
+                    continue
+                if response.status_code != 200:
+                    last_err = f"HTTP {response.status_code}"
+                    response = None
+                    continue
+                break
+        if response is None:
+            return None, last_err
 
         data = response.json()
         value = data.get("value") or {}
