@@ -5,10 +5,11 @@ Minimal Netflix Login Bot — Entry point.
 Supabase is the source of truth. The bot:
   - loads the cookie pool from Supabase at startup
   - serves /loginlink (quota checked on Supabase profiles)
-  - runs the HTTP API server for the web app (check-cookie / batch-check)
+  - runs the HTTP API server for the web app (check-cookie / batch-check) on $PORT
 """
 
 import logging
+import os
 import threading
 import time
 
@@ -24,7 +25,7 @@ from telegram.request import HTTPXRequest
 
 from config import BOT_TOKEN, ADMIN_IDS
 from supabase_client import load_cookies_from_supabase
-from api_server import start_api_server
+from api_server import start_api_server, _server as api_server_ref
 from handlers import (
     cmd_start,
     cmd_loginlink,
@@ -41,7 +42,6 @@ logging.basicConfig(
 logger = logging.getLogger("NetflixBot")
 
 # Tự reload cookie pool từ Supabase định kỳ để nhận cookie mới admin import
-# mà không cần restart bot (bot chỉ load 1 lần lúc startup trước đây).
 COOKIE_RELOAD_INTERVAL_SEC = 300  # 5 phút
 
 
@@ -81,6 +81,12 @@ async def _setup_commands(app):
         logger.error("Failed to set commands menu: %s", e)
 
 
+def _run_bot_polling(app):
+    """Run bot polling in background thread."""
+    logger.info("Starting Telegram bot polling...")
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+
+
 def main():
     print()
     print("─── 🔸 ───")
@@ -107,16 +113,29 @@ def main():
         .build()
     )
 
-    start_api_server(app.bot)
-
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("loginlink", cmd_loginlink))
     app.add_handler(CommandHandler("lang", cmd_lang))
     app.add_handler(CallbackQueryHandler(on_lang_callback, pattern="^lang_"))
     app.add_handler(CallbackQueryHandler(on_link_confirm_callback, pattern="^link_(yes|no)$"))
 
+    # Start API server on $PORT (required by RunxBuild/Render/Heroku/etc)
+    port = int(os.getenv("PORT", "8081"))
+    start_api_server(app.bot)
+    logger.info("🚀 API server started on port %d", port)
+
+    # Start bot polling in background thread
+    bot_thread = threading.Thread(target=_run_bot_polling, args=(app,), daemon=True, name="bot-polling")
+    bot_thread.start()
+    logger.info("🤖 Bot polling started in background")
+
+    # Keep main thread alive - RunxBuild expects process to stay alive on $PORT
     logger.info("🚀 Bot is running!")
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    try:
+        while True:
+            time.sleep(60)
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
 
 
 if __name__ == "__main__":
