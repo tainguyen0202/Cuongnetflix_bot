@@ -81,6 +81,24 @@ async def _setup_commands(app):
         logger.error("Failed to set commands menu: %s", e)
 
 
+def _wait_for_api_server(port, timeout=30):
+    """Wait for API server health endpoint to be ready."""
+    import urllib.request
+    import urllib.error
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            with urllib.request.urlopen(f"http://localhost:{port}/health", timeout=2) as resp:
+                if resp.status == 200:
+                    logger.info("API server health check passed")
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    logger.warning("API server health check timeout after %ds", timeout)
+    return False
+
+
 def main():
     print()
     print("─── 🔸 ───")
@@ -119,9 +137,16 @@ def main():
     app.add_handler(CallbackQueryHandler(on_link_confirm_callback, pattern="^link_(yes|no)$"))
 
     # Start API server in background thread FIRST (for health checks)
+    port = int(os.getenv("PORT", "8081"))
     api_thread = threading.Thread(target=lambda: start_api_server(app.bot), daemon=False, name="api-server")
     api_thread.start()
-    logger.info("🚀 API server thread started")
+    logger.info("🚀 API server thread started on port %d", port)
+
+    # Wait for API server to be ready (health check must pass)
+    logger.info("Waiting for API server to be ready...")
+    if not _wait_for_api_server(port):
+        logger.error("API server failed to start in time")
+        raise RuntimeError("API server health check failed")
 
     # Start bot polling in MAIN thread (blocking) - required by python-telegram-bot
     logger.info("🤖 Starting bot polling in main thread...")
