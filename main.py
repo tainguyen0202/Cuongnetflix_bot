@@ -41,11 +41,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("NetflixBot")
 
-# Tự reload cookie pool từ Supabase định kỳ - tăng interval để tiết kiệm RAM
-COOKIE_RELOAD_INTERVAL_SEC = 600  # 10 phút
+# Tự reload cookie pool từ Supabase định kỳ - TẮT để tiết kiệm RAM
+COOKIE_RELOAD_INTERVAL_SEC = 0  # 0 = tắt auto-reload
 
 
 def _start_cookie_reloader():
+    if COOKIE_RELOAD_INTERVAL_SEC <= 0:
+        logger.info("Cookie auto-reloader disabled (saves RAM)")
+        return
     def _loop():
         while True:
             time.sleep(COOKIE_RELOAD_INTERVAL_SEC)
