@@ -238,6 +238,8 @@ def start_api_server(bot=None):
                     return
             if path.startswith("/api/"):
                 _handle_tools(self, self.command, path, body)
+            elif path in ("/health", "/"):
+                _json_response(self, 200, {"status": "ok", "service": "netflix-bot"})
             else:
                 _json_response(self, 404, {"success": False, "error": "Not found"})
 
