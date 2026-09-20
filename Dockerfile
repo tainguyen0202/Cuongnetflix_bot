@@ -6,11 +6,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy code bot (không copy .env — env vars set trên hosting)
+# Copy code
 COPY config.py supabase_client.py handlers.py api_server.py main.py checker.py proxies.py shrinkme.py lang.py ./
 COPY PROXY_URLS.txt ./
 
-# Mở port API server (web gọi check-cookie)
+# Mở port từ $PORT (Tranger Cloud inject PORT)
 EXPOSE 8081
 
-CMD ["python3", "-u", "main.py"]
+# Start command - dùng $PORT hoặc default 8081
+CMD ["sh", "-c", "python3 -u main.py"]

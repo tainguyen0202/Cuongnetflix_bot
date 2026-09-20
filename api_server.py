@@ -257,7 +257,7 @@ def start_api_server(bot=None):
         def log_message(self, fmt, *args):
             logger.info("[API] " + fmt, *args)
 
-    port = int(os.getenv("API_PORT", "8081"))
+    port = int(os.getenv("PORT") or os.getenv("API_PORT", "8081"))
     _server = ReusableThreadingHTTPServer(("0.0.0.0", port), ApiHandler)
     thread = threading.Thread(target=_server.serve_forever, daemon=True, name="api-server")
     thread.start()
