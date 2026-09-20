@@ -5,8 +5,8 @@ Supabase is the source of truth:
   - cookies table  -> cookie pool (raw_line)
   - profiles table -> user quota / plan / telegram_id
 
-The bot keeps a RAM copy of the cookie pool (loaded at startup) and reads /
-writes quota directly on the profiles table.
+The bot queries cookies on-demand in small batches (lazy loading)
+to keep RAM usage low (~150MB quota).
 """
 
 import datetime
@@ -26,9 +26,9 @@ from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 _client = None
 _client_lock = threading.Lock()
 
-# ── RAM cookie pool ──
-_cookies = []
-_cookies_lock = threading.Lock()
+# ── Cookie pool constants ──
+_COOKIE_PAGE_SIZE = 100  # Giảm từ 500 → 100 để tiết kiệm RAM
+_COOKIE_CHECK_BATCH = 40  # Số cookie check mỗi lần (check_pool_job)
 
 
 def _get_client():
@@ -51,21 +51,45 @@ def is_configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_SERVICE_KEY and create_client)
 
 
-# ── Cookie pool ──
+# ── Cookie pool (lazy loading, no RAM cache) ──
 
 def load_cookies_from_supabase():
-    """Load all Netflix cookie raw_lines from Supabase into RAM."""
-    global _cookies
+    """
+    Warm-up: query count only, không load toàn bộ vào RAM.
+    Trả về tổng số cookie (để log), không lưu vào biến global.
+    """
     client = _get_client()
     if client is None:
         logger.warning("Supabase not configured — cookie pool empty")
-        _cookies = []
         return 0
     try:
-        lines = []
-        # Keyset pagination theo id (uuid) thay vì offset — offset scan chậm trên bảng lớn
-        # (text raw_line dài ~1KB/row) gây 504 Gateway Timeout khi bảng > 11.000 rows.
-        page_size = 500
+        # Chỉ đếm, không select raw_line (tiết kiệm bandwidth + RAM)
+        res = (
+            client.table("cookies")
+            .select("id", count="exact")
+            .eq("website_name", "Netflix")
+            .neq("status", "dead")
+            .limit(1)
+            .execute()
+        )
+        count = res.count or 0
+        logger.info("Cookie pool size: %d cookies (lazy loading)", count)
+        return count
+    except Exception as e:
+        logger.warning("load_cookies_from_supabase failed: %s", e)
+        return 0
+
+
+def get_cookie_pool():
+    """
+    Trả về iterator cho 1 batch nhỏ cookie (dùng cho check_pool_job).
+    Không load toàn bộ pool vào RAM.
+    """
+    client = _get_client()
+    if client is None:
+        return iter([])
+    
+    def _cookie_generator():
         last_id = None
         while True:
             q = (
@@ -74,7 +98,7 @@ def load_cookies_from_supabase():
                 .eq("website_name", "Netflix")
                 .neq("status", "dead")
                 .order("id")
-                .limit(page_size)
+                .limit(_COOKIE_PAGE_SIZE)
             )
             if last_id:
                 q = q.gt("id", last_id)
@@ -82,29 +106,83 @@ def load_cookies_from_supabase():
             rows = res.data or []
             if not rows:
                 break
-            lines.extend(r["raw_line"] for r in rows if r.get("raw_line"))
-            if len(rows) < page_size:
+            for r in rows:
+                raw = r.get("raw_line")
+                if raw:
+                    yield raw
+            if len(rows) < _COOKIE_PAGE_SIZE:
                 break
             last_id = rows[-1]["id"]
-        with _cookies_lock:
-            _cookies = lines
-        logger.info("Loaded %d cookies from Supabase", len(lines))
-        return len(lines)
+    
+    return _cookie_generator()
+
+
+def get_cookie_pool_batch(batch_size=_COOKIE_CHECK_BATCH):
+    """
+    Lấy 1 batch nhỏ cookie để check (dùng cho check_pool_job).
+    Trả về list có tối đa batch_size phần tử.
+    """
+    client = _get_client()
+    if client is None:
+        return []
+    try:
+        res = (
+            client.table("cookies")
+            .select("id, raw_line")
+            .eq("website_name", "Netflix")
+            .neq("status", "dead")
+            .order("id")
+            .limit(batch_size)
+            .execute()
+        )
+        return [r["raw_line"] for r in (res.data or []) if r.get("raw_line")]
     except Exception as e:
-        logger.warning("load_cookies_from_supabase failed: %s", e)
-        _cookies = []
-        return 0
+        logger.warning("get_cookie_pool_batch failed: %s", e)
+        return []
 
 
-def get_cookie_pool():
-    """Return a snapshot of the RAM cookie pool."""
-    with _cookies_lock:
-        return list(_cookies)
+def get_cookie_pool_list(limit=200):
+    """
+    Trả về list cookie (tối đa limit phần tử) để handlers.py random access.
+    Không load toàn bộ pool - chỉ lấy limit đầu tiên.
+    """
+    client = _get_client()
+    if client is None:
+        return []
+    try:
+        res = (
+            client.table("cookies")
+            .select("id, raw_line")
+            .eq("website_name", "Netflix")
+            .neq("status", "dead")
+            .order("id")
+            .limit(limit)
+            .execute()
+        )
+        return [r["raw_line"] for r in (res.data or []) if r.get("raw_line")]
+    except Exception as e:
+        logger.warning("get_cookie_pool_list failed: %s", e)
+        return []
 
 
 def get_cookie_count():
-    with _cookies_lock:
-        return len(_cookies)
+    """Query count từ Supabase trực tiếp (không dùng RAM cache)."""
+    client = _get_client()
+    if client is None:
+        return 0
+    try:
+        res = (
+            client.table("cookies")
+            .select("id", count="exact")
+            .eq("website_name", "Netflix")
+            .neq("status", "dead")
+            .limit(1)
+            .execute()
+        )
+        return res.count or 0
+    except Exception as e:
+        logger.warning("get_cookie_count failed: %s", e)
+        return 0
 
 
 # ── Profile / quota ──

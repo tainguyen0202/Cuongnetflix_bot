@@ -29,7 +29,7 @@ from supabase_client import (
     consume_quota,
     downgrade_expired,
     expire_telegram_link,
-    get_cookie_pool,
+    get_cookie_pool_list,
     get_or_create_profile,
     get_profile_by_telegram,
     get_quota_left,
@@ -93,7 +93,7 @@ def _find_and_generate_login_link():
     """
     from checker import parse_cookie_line, check_cookie, generate_nftoken
 
-    pool = get_cookie_pool()
+    pool = get_cookie_pool_list(200)
     if not pool:
         return None, "Không có cookie trong pool. Vui lòng thử lại sau.", None
 
