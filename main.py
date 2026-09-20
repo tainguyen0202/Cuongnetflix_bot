@@ -136,10 +136,14 @@ def main():
     app.add_handler(CallbackQueryHandler(on_lang_callback, pattern="^lang_"))
     app.add_handler(CallbackQueryHandler(on_link_confirm_callback, pattern="^link_(yes|no)$"))
 
-    # Start API server in background thread (non-daemon to keep process alive)
-    api_thread = threading.Thread(target=_run_api_server, args=(app,), daemon=False, name="api-server")
-    api_thread.start()
-    logger.info("🚀 API server thread started")
+    # Start API server SYNCHRONOUSLY first (blocking until ready) - required for health checks
+    logger.info("Starting API server on port %d...", int(os.getenv("PORT", "8081")))
+    try:
+        start_api_server(app.bot)
+        logger.info("🚀 API server started and listening")
+    except Exception as e:
+        logger.error("Failed to start API server: %s", e)
+        raise
 
     # Start bot polling in background thread
     bot_thread = threading.Thread(target=_run_bot_polling, args=(app,), daemon=False, name="bot-polling")
