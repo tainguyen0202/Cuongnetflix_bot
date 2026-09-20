@@ -97,7 +97,7 @@ def _find_and_generate_login_link():
     if not pool:
         return None, "Không có cookie trong pool. Vui lòng thử lại sau.", None
 
-    max_tries = min(len(pool), 10)
+    max_tries = min(len(pool), 25)
     used = set()
     for _ in range(max_tries):
         idx = random.randrange(len(pool))
@@ -114,7 +114,7 @@ def _find_and_generate_login_link():
         status = info.get("status")
 
         if status == "DEAD":
-            update_cookie_status(raw, "dead", dead_reason=info.get("status"))
+            update_cookie_status(raw, "dead", dead_reason=info.get("dead_reason", "DEAD"))
             continue
         if status == "ERROR":
             time.sleep(1)

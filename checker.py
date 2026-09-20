@@ -25,27 +25,31 @@ REQUEST_TIMEOUT = (10, 30)
 thread_local = threading.local()
 
 
-def _try_request(requestor):
+def _try_request(requestor, *, use_proxy_first=True):
     """
-    Chạy requestor(proxy_url) qua tối đa 3 proxy sống → fallback IP VPS (None).
+    Chạy requestor(proxy_url) — Ưu tiên direct (VPS) nếu use_proxy_first=False.
+    Nếu use_proxy_first=True: thử 3 proxy sống → fallback IP VPS (None).
     Proxy lỗi mạng / HTTP 403/429/5xx → mark_bad và thử proxy kế.
     Trả (response, proxy_used). Có thể ném exception cuối cùng (VPS cũng lỗi).
     """
-    for _ in range(3):
-        proxy = get_proxy()
-        try:
-            resp = requestor(proxy)
-        except Exception:
-            if proxy:
+    if use_proxy_first:
+        for _ in range(3):
+            proxy = get_proxy()
+            try:
+                resp = requestor(proxy)
+            except Exception:
+                if proxy:
+                    mark_bad(proxy)
+                continue
+            if resp is None:
+                continue
+            if proxy and resp.status_code in (403, 429, 500, 502, 503, 504):
                 mark_bad(proxy)
-            continue
-        if resp is None:
-            continue
-        if proxy and resp.status_code in (403, 429, 500, 502, 503, 504):
-            mark_bad(proxy)
-            continue
-        return resp, proxy
-    return requestor(None), None
+                continue
+            return resp, proxy
+        return requestor(None), None
+    else:
+        return requestor(None), None
 
 
 def _create_session():
@@ -441,35 +445,11 @@ def parse_cookie_line(raw_line):
 
 
 def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
-    """Wrapper chống dead-oan: verdict DEAD phải được xác nhận bởi IP thứ hai
-    khác IP lần check đầu. direct=True giữ nguyên hành vi cũ (verdict thô)."""
-    info = _check_cookie_impl(netflix_id, secure_id, extra_cookies, direct)
-    if direct or info.get("status") != "DEAD":
-        return info
-    used = info.pop("_proxy_used", None)
-    confirm = _check_cookie_impl(netflix_id, secure_id, extra_cookies, False, True, used)
-    cstatus = confirm.get("status")
-    confirm.pop("_proxy_used", None)
-    if cstatus == "DEAD":
-        logger.info("check_cookie: DEAD confirmed by 2nd IP (first used proxy=%s)", bool(used))
-        info["dead_reason"] = (str(info.get("dead_reason") or "") + " [xác nhận bởi IP thứ 2]").strip()
-        return info
-    if cstatus == "LIVE":
-        logger.info("check_cookie: DEAD overturned - 2nd IP says LIVE (first IP flagged)")
-        confirm["note"] = "Verdict DEAD từ IP đầu đã bị đảo ngược (IP đầu bị flag)"
-        return confirm
-    logger.info("check_cookie: DEAD unconfirmable via 2nd IP -> ERROR (avoid dead-oan)")
-    info["status"] = "ERROR"
-    info["error"] = "DEAD chưa xác minh được từ IP thứ hai - tránh dead oan"
-    info.pop("dead_reason", None)
-    return info
+    """Check cookie status - matched with bot cũ (net_fixed.py) logic for accuracy.
 
-
-def _check_cookie_impl(netflix_id, secure_id=None, extra_cookies=None, direct=False, _force_proxy=False, _avoid_proxy=None):
-    """Check cookie status - matched with net_fixed.py logic for accuracy.
-
-    direct=True → chỉ gọi thẳng IP VPS (không proxy), dùng để xác minh lại
-    cookie bị nghi DEAD do proxy trả trang login/throttled."""
+    Chỉ check MỘT lần duy nhất (không double-confirm). direct=True → gọi thẳng
+    IP VPS (không proxy), dùng để xác minh lại cookie bị nghi DEAD do proxy trả
+    trang login/throttled."""
     if not netflix_id:
         return {"status": "ERROR", "error": "Missing NetflixId"}
 
@@ -493,19 +473,7 @@ def _check_cookie_impl(netflix_id, secure_id=None, extra_cookies=None, direct=Fa
         )
 
     try:
-        used = None
-        if _force_proxy:
-            _p = None
-            for _i in range(4):
-                _cand = get_proxy()
-                if _cand is None or _cand != _avoid_proxy:
-                    _p = _cand
-                    break
-            r = _do_request(_p)
-        elif direct:
-            r = _do_request(None)
-        else:
-            r, used = _try_request(_do_request)
+        r = _do_request(None)
 
         # HTTP guard: IP bị throttle / lỗi server → ERROR, không đánh DEAD oan
         if r.status_code in (403, 429):
@@ -524,13 +492,12 @@ def _check_cookie_impl(netflix_id, secure_id=None, extra_cookies=None, direct=Fa
             pass
 
         # DEAD: final URL chứa "login" nhưng KHÔNG chứa "account"
-        # Kiểm tra thêm: nếu cookies SecureNetflixId/NetflixId bị lấy đi → DEAD
+        # Tuy nhiên, khi check qua IP VPS trực tiếp, trang login thường do IP bị chặn Netflix
+        # chứ không cookie hết hạn. Trả về ERROR để cookie có thể retry sau.
         final_url = str(getattr(r, 'url', '') or '').lower()
         if "login" in final_url and "account" not in final_url:
-            new_cookies_dict = {c.name for c in r.cookies}
-            if "SecureNetflixId" not in new_cookies_dict and "NetflixId" not in new_cookies_dict:
-                return {"status": "DEAD", "dead_reason": "redirect_login", "_proxy_used": used}
-            # Cookies still present → not dead, just redirect, fall through to parse page
+            logger.info("Cookie redirect to login via VPS IP → returning ERROR (IP may be blocked), not DEAD")
+            return {"status": "ERROR", "error": "IP blocked by Netflix, cookie may be valid"}
 
         # Parse the page
         decoded = decode_response(r.text or "")
@@ -538,13 +505,12 @@ def _check_cookie_impl(netflix_id, secure_id=None, extra_cookies=None, direct=Fa
 
         # Nếu parse_account_info đã phát hiện DEAD thì return luôn
         if info.get("status") == "DEAD":
-            info["_proxy_used"] = used
             return info
 
         # DEAD: account has no active membership (giống net_fixed.py)
         membership = info.get("membershipStatus", "-")
         if membership in ("ANONYMOUS", "FORMER_MEMBER", "NON_MEMBER", "NEVER_MEMBER"):
-            return {"status": "DEAD", "dead_reason": f"membership_expired: {membership}", "_proxy_used": used}
+            return {"status": "DEAD", "dead_reason": f"Membership: {membership}"}
 
         # Extract nfvdid
         nfvdid_match = re.search(r'"nfvdid"\s*:\s*"([^"]+)"', decoded)
