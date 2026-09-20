@@ -81,24 +81,6 @@ async def _setup_commands(app):
         logger.error("Failed to set commands menu: %s", e)
 
 
-def _run_bot_polling(app):
-    """Run bot polling in background thread."""
-    logger.info("Starting Telegram bot polling...")
-    try:
-        app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
-    except Exception as e:
-        logger.error("Bot polling crashed: %s", e)
-
-
-def _run_api_server(app):
-    """Run API server in background thread (non-daemon to keep process alive)."""
-    logger.info("Starting API server on port %d...", int(os.getenv("PORT", "8081")))
-    try:
-        start_api_server(app.bot)
-    except Exception as e:
-        logger.error("API server crashed: %s", e)
-
-
 def main():
     print()
     print("─── 🔸 ───")
@@ -136,27 +118,15 @@ def main():
     app.add_handler(CallbackQueryHandler(on_lang_callback, pattern="^lang_"))
     app.add_handler(CallbackQueryHandler(on_link_confirm_callback, pattern="^link_(yes|no)$"))
 
-    # Start API server SYNCHRONOUSLY first (blocking until ready) - required for health checks
-    logger.info("Starting API server on port %d...", int(os.getenv("PORT", "8081")))
-    try:
-        start_api_server(app.bot)
-        logger.info("🚀 API server started and listening")
-    except Exception as e:
-        logger.error("Failed to start API server: %s", e)
-        raise
+    # Start API server in background thread FIRST (for health checks)
+    api_thread = threading.Thread(target=lambda: start_api_server(app.bot), daemon=False, name="api-server")
+    api_thread.start()
+    logger.info("🚀 API server thread started")
 
-    # Start bot polling in background thread
-    bot_thread = threading.Thread(target=_run_bot_polling, args=(app,), daemon=False, name="bot-polling")
-    bot_thread.start()
-    logger.info("🤖 Bot polling thread started")
-
-    # Keep main thread alive - RunxBuild expects process to stay alive
+    # Start bot polling in MAIN thread (blocking) - required by python-telegram-bot
+    logger.info("🤖 Starting bot polling in main thread...")
     logger.info("🚀 Bot is running!")
-    try:
-        while True:
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 
 if __name__ == "__main__":
