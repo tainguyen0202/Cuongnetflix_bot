@@ -84,7 +84,19 @@ async def _setup_commands(app):
 def _run_bot_polling(app):
     """Run bot polling in background thread."""
     logger.info("Starting Telegram bot polling...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    try:
+        app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    except Exception as e:
+        logger.error("Bot polling crashed: %s", e)
+
+
+def _run_api_server(app):
+    """Run API server in background thread (non-daemon to keep process alive)."""
+    logger.info("Starting API server on port %d...", int(os.getenv("PORT", "8081")))
+    try:
+        start_api_server(app.bot)
+    except Exception as e:
+        logger.error("API server crashed: %s", e)
 
 
 def main():
@@ -94,9 +106,14 @@ def main():
     print("─── 🔸 ───")
     print()
 
-    # Load cookie pool from Supabase (source of truth)
-    total = load_cookies_from_supabase()
-    logger.info("Ready! %d cookies loaded from Supabase.", total)
+    try:
+        # Load cookie pool from Supabase (source of truth)
+        total = load_cookies_from_supabase()
+        logger.info("Ready! %d cookies loaded from Supabase.", total)
+    except Exception as e:
+        logger.error("Failed to load cookies: %s", e)
+        total = 0
+
     _start_cookie_reloader()
     start_proxy_scanner()
 
@@ -119,17 +136,17 @@ def main():
     app.add_handler(CallbackQueryHandler(on_lang_callback, pattern="^lang_"))
     app.add_handler(CallbackQueryHandler(on_link_confirm_callback, pattern="^link_(yes|no)$"))
 
-    # Start API server on $PORT (required by RunxBuild/Render/Heroku/etc)
-    port = int(os.getenv("PORT", "8081"))
-    start_api_server(app.bot)
-    logger.info("🚀 API server started on port %d", port)
+    # Start API server in background thread (non-daemon to keep process alive)
+    api_thread = threading.Thread(target=_run_api_server, args=(app,), daemon=False, name="api-server")
+    api_thread.start()
+    logger.info("🚀 API server thread started")
 
     # Start bot polling in background thread
-    bot_thread = threading.Thread(target=_run_bot_polling, args=(app,), daemon=True, name="bot-polling")
+    bot_thread = threading.Thread(target=_run_bot_polling, args=(app,), daemon=False, name="bot-polling")
     bot_thread.start()
-    logger.info("🤖 Bot polling started in background")
+    logger.info("🤖 Bot polling thread started")
 
-    # Keep main thread alive - RunxBuild expects process to stay alive on $PORT
+    # Keep main thread alive - RunxBuild expects process to stay alive
     logger.info("🚀 Bot is running!")
     try:
         while True:
