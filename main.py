@@ -41,8 +41,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("NetflixBot")
 
-# Tự reload cookie pool từ Supabase định kỳ để nhận cookie mới admin import
-COOKIE_RELOAD_INTERVAL_SEC = 300  # 5 phút
+# Tự reload cookie pool từ Supabase định kỳ - tăng interval để tiết kiệm RAM
+COOKIE_RELOAD_INTERVAL_SEC = 600  # 10 phút
 
 
 def _start_cookie_reloader():
@@ -115,11 +115,12 @@ def main():
         total = 0
 
     _start_cookie_reloader()
-    start_proxy_scanner()
+    # TẮT proxy scanner để tiết kiệm RAM (Free tier 512MB)
+    # start_proxy_scanner()
 
     request = HTTPXRequest(
         connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0,
-        pool_timeout=30.0, connection_pool_size=40,
+        pool_timeout=30.0, connection_pool_size=20,
     )
     app = (
         ApplicationBuilder()
