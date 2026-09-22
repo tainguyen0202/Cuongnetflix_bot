@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy code
-COPY config.py supabase_client.py handlers.py api_server.py main.py checker.py proxies.py shrinkme.py lang.py ./
+COPY config.py supabase_client.py handlers.py api_server.py main.py checker.py proxies.py shrinkme.py lang.py cookie_checker.py ./
 COPY PROXY_URLS.txt ./
 
 # Mở port từ $PORT (Tranger Cloud inject PORT)
