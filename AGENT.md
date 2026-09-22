@@ -6,7 +6,7 @@
 Bot Telegram `@cuongnetflix_bot` tạo link đăng nhập Netflix từ pool cookie. Supabase là
 source of truth (cookie pool + profile/quota). Bot là worker mỏng: check cookie, gen
 NFToken + 3 device links, phục vụ web API (check-cookie/batch-check). Deploy lên
-JustRunMy.App (Python runtime, port 8081).
+JustRunMy.App / Tranger Cloud (`cloud.tranger.xyz`) — Python runtime, port 8081.
 
 ## Current Status
 - Bot mới (thay thế `netflix-bot-tele` cũ đã xóa — bot cũ dùng file cục bộ, không Supabase).
@@ -16,6 +16,7 @@ JustRunMy.App (Python runtime, port 8081).
 - Liên kết web <-> bot TỰ ĐỘNG: web tạo token trong `telegram_links` → user bấm deep link
   `t.me/bot?start=link_XXXX` → bot `/start link_XXXX` ghi `telegram_id` vào profile + đánh
   dấu token linked. Không còn nhập ID thủ công.
+- Background auto-checker (`cookie_checker.py`) chạy kiểm tra và dọn pool cookie tự động.
 
 ## Current Architecture
 ```
@@ -48,13 +49,35 @@ proxies.py            — proxy pool
 - Quota: free → 0 (phải qua gate shrinkme); basic/pro → quota_limit/ngày, reset theo giờ VN.
 - Plan hết hạn 30 ngày → tự downgrade free khi dùng /loginlink.
 
-## Env (set trên JustRunMy.App)
+## Env (set trên JustRunMy.App / Tranger Cloud)
 - `BOT_TOKEN`, `BOT_USERNAME`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
 - `SHRINKME_API_KEY`, `ADMIN_IDS`, `WEB_URL`
+- `CHECKER_ENABLED` (default: 1), `CHECKER_BATCH_SIZE` (default: 20), `CHECKER_INTERVAL_SEC` (default: 300)
+- `CHECKER_COOKIE_DELAY_SEC` (default: 3.0), `CHECKER_MAX_FAIL_COUNT` (default: 3), `CHECKER_RECHECK_HOURS` (default: 24)
+
+## ⚠️ CRITICAL RULES — Bắt Buộc Tuân Theo Mỗi Lần Thêm File Python Mới
+
+> **RULE [DOCKERFILE-COPY]**: Dockerfile dùng `COPY` tường minh (liệt kê từng file .py, KHÔNG dùng `COPY . .`).
+> **Mỗi khi tạo file Python mới (.py), BẮT BUỘC thêm tên file đó vào dòng `COPY` trong `Dockerfile` ngay lập tức — cùng lúc với commit code.**
+> Nếu quên → container build không có file → `ModuleNotFoundError` khi deploy.
+
+Ví dụ: Tạo `foo_module.py` → sửa Dockerfile:
+```dockerfile
+COPY config.py supabase_client.py ... foo_module.py ./
+```
+Commit cả hai file trong cùng 1 commit.
+
+> **RULE [SYNTAX-CHECK]**: Sau mỗi lần thay đổi code Python, chạy syntax check toàn bộ:
+> ```
+> python3 -c "import ast; [ast.parse(open(f, encoding='utf-8').read()) for f in ['config.py','checker.py','supabase_client.py','cookie_checker.py','main.py','handlers.py']]; print('ALL OK')"
+> ```
+
+> **RULE [MIGRATION-SQL]**: Mỗi khi thêm cột / bảng Supabase mới, tạo file `migration_*.sql` kèm theo và ghi rõ trong WORK_PROGRESS.md bước "Anh cần chạy SQL này trên Supabase Dashboard → SQL Editor".
 
 ## Testing
-- `python3 -c "import ast; ast.parse(open('handlers.py').read())"` (syntax check).
+- Syntax check tất cả file: `python3 -c "import ast; [ast.parse(open(f, encoding='utf-8').read()) for f in ['config.py','checker.py','supabase_client.py','cookie_checker.py','main.py','handlers.py']]; print('ALL OK')"`
 - Test thật: mở bot → /start → /loginlink; web → Hồ sơ → Liên kết Telegram.
+- Verify checker: check logs sau deploy, xem dòng `🔍 Checker: Starting batch check`, `✅ Cookie id=...`, `🗑️ Cookie id=... Hard DEAD`.
 
 ## Non-Goals
 - Không lưu secret trong code (dùng .env / env hosting).

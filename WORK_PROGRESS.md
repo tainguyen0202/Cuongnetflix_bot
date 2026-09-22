@@ -26,6 +26,8 @@ service).
 - [x] Dọn sạch Supabase: xóa 456 profiles bot cũ, 4 orders, 2 telegram_links
 - [x] Deploy bot rebuild + restart trên JustRunMy.App
 - [x] Test end-to-end: tạo token → gán telegram_id → linked → poll OK
+- [x] Auto cookie live/die checker + auto purge dead cookies
+- [x] Fix Dockerfile: thêm `cookie_checker.py` vào dòng COPY
 
 ## Progress Log
 - **2026-09-11 (dọn repo + liên kết Telegram tự động)**:
@@ -54,16 +56,6 @@ service).
   - Web vẫn gọi `/api/check-cookie` như cũ; phản hồi nhận token + link nhanh hơn.
   - Đã push `main` + `build` lên JustRunMy.App, rebuild image và restart app `62239`.
   - Verify container: `/app/handlers.py` không còn gọi `validate_nftoken()`.
-
-## Deploy
-- Bot mới đã deploy lên JustRunMy.App (port 8081).
-- Cần push code mới → JustRunMy.App rebuild (hoặc redeploy zip).
-
-## Known Issues
-- `cookie.txt` 21MB đã bị xóa cùng bot cũ — không còn file cookie cục bộ nào.
-- Proxy pool (`proxies.py` + `PROXY_URLS.txt`) vẫn load được (17 live proxy khi dừng service cũ).
-- Bot mới chỉ load cookie từ Supabase, KHÔNG đọc file cục bộ.
-
 - **2026-09-18 (Netflix-only cookie pool complete)**:
   - Import 12,039 Netflix cookie từ `Web-cuongnetflix/Cookies/` vào Supabase `cookies` table.
   - DB `cookies` table: 17,013 unknown + 10 green + 640 dead = ~17,663 rows, tất cả `website_name='Netflix'`.
@@ -75,5 +67,25 @@ service).
   - Hard dead (`FORMER_MEMBER`, `NEVER_MEMBER`, `ANONYMOUS`) lập tức xóa dứt điểm khỏi DB qua `delete_cookie_by_id`.
   - HTTP errors (429/403/5xx/timeout) không đếm fail để bảo vệ cookie, tuyệt đối không die nhầm.
   - Tự động dọn dẹp sạch sẽ: hàm `purge_dead_cookies()` quét và xóa toàn bộ cookie dead còn sót sau mỗi batch.
-  - Migration SQL `migration_cookies_strike.sql` sẵn sàng để thêm `check_fail_count` và `last_check_error`.
+  - Migration SQL `migration_cookies_strike.sql` — anh chạy trên Supabase Dashboard → SQL Editor.
+  - **Fix bug**: Dockerfile COPY tường minh → quên thêm `cookie_checker.py` → `ModuleNotFoundError` khi deploy.
+    Fix: thêm `cookie_checker.py` vào dòng COPY Dockerfile + commit riêng `8a96e78`.
+  - Rule mới thêm vào `AGENT.md`: mỗi khi tạo file Python mới BẮT BUỘC update Dockerfile ngay lập tức.
 
+## Deploy
+- Bot deploy lên Tranger Cloud / JustRunMy.App (port 8081).
+- Cần push code mới → Tranger Cloud rebuild image (hoặc trigger rebuild trên dashboard).
+- **Tranger Cloud URL**: `cloud.tranger.xyz`
+
+## Known Issues
+- `cookie.txt` 21MB đã bị xóa cùng bot cũ — không còn file cookie cục bộ nào.
+- Proxy pool (`proxies.py` + `PROXY_URLS.txt`) vẫn load được (17 live proxy khi dừng service cũ).
+- Bot mới chỉ load cookie từ Supabase, KHÔNG đọc file cục bộ.
+
+## Supabase Migrations Pending
+- `migration_cookies_strike.sql` — **Anh cần chạy trên Supabase Dashboard → SQL Editor**:
+  ```sql
+  ALTER TABLE cookies ADD COLUMN IF NOT EXISTS check_fail_count integer DEFAULT 0;
+  ALTER TABLE cookies ADD COLUMN IF NOT EXISTS last_check_error text;
+  CREATE INDEX IF NOT EXISTS idx_cookies_checker ON cookies (status, last_checked_at);
+  ```
