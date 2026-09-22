@@ -114,13 +114,16 @@ def _find_and_generate_login_link():
         status = info.get("status")
 
         if status == "DEAD":
-            update_cookie_status(raw, "dead", dead_reason=info.get("dead_reason", "DEAD"))
+            if info.get("is_hard_dead"):
+                delete_cookie(raw)
+            else:
+                update_cookie_status(raw, "dead", dead_reason=info.get("dead_reason", "DEAD"))
             continue
         if status == "ERROR":
             time.sleep(1)
             continue
         if str(info.get("membershipStatus", "")).upper() == "FORMER_MEMBER":
-            update_cookie_status(raw, "dead", dead_reason="FORMER_MEMBER")
+            delete_cookie(raw)
             continue
 
         # Cookie LIVE — build cookie dict + gen nftoken

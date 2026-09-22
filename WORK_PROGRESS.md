@@ -69,3 +69,11 @@ service).
   - DB `cookies` table: 17,013 unknown + 10 green + 640 dead = ~17,663 rows, tất cả `website_name='Netflix'`.
   - Xóa local `Web-cuongnetflix/Cookies/` (2997 dirs, 18,798 txt files).
   - Cookie pool Supabase hiện tại đủ cho bot rải link liên tục.
+- **2026-09-22 (Safe Auto Cookie Live/Die Checker & Auto Purge)**:
+  - Tạo `cookie_checker.py`: background thread worker tự động duyệt pool cookie theo batch nhỏ (20 cookie/lần, delay 3s).
+  - Strike system (3-strikes): Soft dead (`parse_failed`, `redirect_login`) phải fail 3 lần liên tiếp mới xóa.
+  - Hard dead (`FORMER_MEMBER`, `NEVER_MEMBER`, `ANONYMOUS`) lập tức xóa dứt điểm khỏi DB qua `delete_cookie_by_id`.
+  - HTTP errors (429/403/5xx/timeout) không đếm fail để bảo vệ cookie, tuyệt đối không die nhầm.
+  - Tự động dọn dẹp sạch sẽ: hàm `purge_dead_cookies()` quét và xóa toàn bộ cookie dead còn sót sau mỗi batch.
+  - Migration SQL `migration_cookies_strike.sql` sẵn sàng để thêm `check_fail_count` và `last_check_error`.
+

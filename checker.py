@@ -333,18 +333,21 @@ def parse_account_info(decoded_html):
         result["numProfiles"] = 1
 
     # ═══ VALIDATION: Detect dead cookies ═══
-    # Chỉ check membershipStatus trước - đây là field tin cậy nhất
     membership = result.get("membershipStatus", "").upper()
     
-    # Các trạng thái chắc chắn DEAD
+    # Các trạng thái chắc chắn DEAD (Hard DEAD - không cần retry)
     if membership in ("FORMER_MEMBER", "NEVER_MEMBER", "NON_MEMBER", "ANONYMOUS"):
-        logger.info(f"Cookie DEAD - membershipStatus: {membership}")
+        logger.info(f"Cookie Hard DEAD - membershipStatus: {membership}")
         result["status"] = "DEAD"
+        result["is_hard_dead"] = True
+        result["is_soft_dead"] = False
         result["dead_reason"] = f"Membership: {membership}"
         return result
     
     # Nếu membershipStatus là CURRENT_MEMBER → chắc chắn LIVE
     if membership == "CURRENT_MEMBER":
+        result["is_hard_dead"] = False
+        result["is_soft_dead"] = False
         return result
     
     # Nếu có bất kỳ thông tin account nào (plan, email, country, profile...) → LIVE
@@ -353,11 +356,15 @@ def parse_account_info(decoded_html):
         for f in ("plan", "email", "country", "displayName", "billing", "authURL")
     )
     if has_any_info:
+        result["is_hard_dead"] = False
+        result["is_soft_dead"] = False
         return result  # Có thông tin → LIVE
     
-    # Nếu membershipStatus là "-" VÀ không có thông tin gì → DEAD
-    logger.info(f"Cookie appears DEAD - no valid account information found (membership={membership})")
+    # Nếu membershipStatus là "-" VÀ không có thông tin gì → Soft DEAD (cần strike count để xác nhận)
+    logger.info(f"Cookie Soft DEAD - no valid account info (membership={membership})")
     result["status"] = "DEAD"
+    result["is_hard_dead"] = False
+    result["is_soft_dead"] = True
     result["dead_reason"] = "parse_failed"
     return result
 
@@ -492,12 +499,15 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
             pass
 
         # DEAD: final URL chứa "login" nhưng KHÔNG chứa "account"
-        # Tuy nhiên, khi check qua IP VPS trực tiếp, trang login thường do IP bị chặn Netflix
-        # chứ không cookie hết hạn. Trả về ERROR để cookie có thể retry sau.
         final_url = str(getattr(r, 'url', '') or '').lower()
         if "login" in final_url and "account" not in final_url:
-            logger.info("Cookie redirect to login via VPS IP → returning ERROR (IP may be blocked), not DEAD")
-            return {"status": "ERROR", "error": "IP blocked by Netflix, cookie may be valid"}
+            logger.info(f"Cookie redirect to login: final_url={final_url} (soft dead candidate)")
+            return {
+                "status": "DEAD",
+                "is_hard_dead": False,
+                "is_soft_dead": True,
+                "dead_reason": "redirect_login",
+            }
 
         # Parse the page
         decoded = decode_response(r.text or "")
@@ -507,10 +517,15 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
         if info.get("status") == "DEAD":
             return info
 
-        # DEAD: account has no active membership (giống net_fixed.py)
+        # DEAD: account has no active membership
         membership = info.get("membershipStatus", "-")
         if membership in ("ANONYMOUS", "FORMER_MEMBER", "NON_MEMBER", "NEVER_MEMBER"):
-            return {"status": "DEAD", "dead_reason": f"Membership: {membership}"}
+            return {
+                "status": "DEAD",
+                "is_hard_dead": True,
+                "is_soft_dead": False,
+                "dead_reason": f"Membership: {membership}",
+            }
 
         # Extract nfvdid
         nfvdid_match = re.search(r'"nfvdid"\s*:\s*"([^"]+)"', decoded)

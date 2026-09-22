@@ -24,6 +24,7 @@ config.py             — env config (BOT_TOKEN, SUPABASE_URL, WEB_URL, ADMIN_ID
 supabase_client.py    — Supabase client: cookie pool + profile/quota + telegram_links CRUD
 handlers.py           — /start (gồm link_XXXX + shrinkme_), /loginlink, /lang
 checker.py            — check cookie, generate/validate NFToken
+cookie_checker.py     — background auto-checker (strike system 3-strikes, purge dead)
 api_server.py         — HTTP API cho web (check-cookie, batch-check, combo-check) port 8081
 shrinkme.py           — rút gọn link gate (chỉ free user)
 lang.py               — i18n vi/en
@@ -34,7 +35,11 @@ proxies.py            — proxy pool
 - Supabase service_role key = full access (bot backend). Web dùng anon/authenticated.
 - **Shrinkme gate logic**: Free user → shrinkme gate (rút gọn link); Basic/Pro có quota → link trực tiếp; Basic/Pro không còn quota → shrinkme gate. Backend quyết định `isShortened` và trả về trong response.
 - **Atomic quota**: `consume_quota()` sử dụng `.lt("links_used_today", limit)` để đảm bảo atomicity — tránh race condition khi nhiều request cùng lúc.
-- **Dead cookie handling**: Khi cookie chết, gọi `update_cookie_status(status="dead", dead_reason="...")` thay vì `delete_cookie()` — giữ lại record để audit. `dead_reason` giá trị: `redirect_login`, `parse_failed`, `expired_token`, `membership_expired`, `region_blocked`, `http_error`.
+- **Auto Cookie Live/Die Checker & Purge**:
+  - Chạy background worker (`cookie_checker.py`) định kỳ theo batch nhỏ (20 cookies, delay 3s).
+  - Phân loại: Hard DEAD (`FORMER_MEMBER`, `NEVER_MEMBER`, etc.) xóa ngay lập tức khỏi DB; Soft DEAD (`parse_failed`, `redirect_login`) dùng strike system (cần 3 lần fail liên tiếp mới xóa).
+  - Lỗi mạng, HTTP 429, 403, 5xx không bao giờ tính fail để chống die nhầm.
+  - Auto-purge: Xóa sạch các cookie status='dead' sau mỗi chu kỳ để dọn dẹp DB.
 - **`validate_nftoken()`**: Giữ lại nhưng tạm bỏ khỏi luồng chính để tối ưu tốc độ trả link nftoken.
 - **`check_cookie()` redirect check**: Kiểm tra HTTP status + session cookie để xác định cookie có bị redirect login hay không.
 - Telegram link: token single-use, TTL 10 phút, bind web_user_id; bot ghi telegram_id

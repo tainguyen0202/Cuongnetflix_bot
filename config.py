@@ -63,3 +63,12 @@ PLAN_PRO_DAILY = 20
 # ── Group gate (bắt buộc tham gia nhóm) ──
 GROUP_USERNAMES = [g for g in os.getenv("GROUP_USERNAMES", "sharefreeall").split(",") if g.strip()]
 ADMIN_TAG = os.getenv("ADMIN_TAG", "@lucasng22")
+
+# ── Cookie Auto-Checker & Purge Config ──
+CHECKER_ENABLED = os.getenv("CHECKER_ENABLED", "1") == "1"
+CHECKER_BATCH_SIZE = int(os.getenv("CHECKER_BATCH_SIZE", "20"))
+CHECKER_INTERVAL_SEC = int(os.getenv("CHECKER_INTERVAL_SEC", "300"))  # 5 phút nghỉ giữa các batch
+CHECKER_COOKIE_DELAY_SEC = float(os.getenv("CHECKER_COOKIE_DELAY_SEC", "3.0"))  # 3s delay giữa mỗi cookie
+CHECKER_MAX_FAIL_COUNT = int(os.getenv("CHECKER_MAX_FAIL_COUNT", "3"))  # 3 lần fail mềm mới coi là dead
+CHECKER_RECHECK_HOURS = int(os.getenv("CHECKER_RECHECK_HOURS", "24"))  # Re-check green cookie sau 24h
+

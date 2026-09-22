@@ -34,6 +34,7 @@ from handlers import (
     on_link_confirm_callback,
 )
 from proxies import start_proxy_scanner
+from cookie_checker import start_auto_checker
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s | %(message)s",
@@ -120,6 +121,9 @@ def main():
     _start_cookie_reloader()
     # TẮT proxy scanner để tiết kiệm RAM (Free tier 512MB)
     # start_proxy_scanner()
+    
+    # Khởi chạy background auto-checker & purge worker
+    start_auto_checker()
 
     request = HTTPXRequest(
         connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0,

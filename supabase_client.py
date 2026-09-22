@@ -496,7 +496,7 @@ def update_cookie_status(raw_line, status, country_code=None, plan_name=None, em
 
 
 def delete_cookie(raw_line):
-    """Deprecated: use update_cookie_status(raw_line, 'dead') instead. Xóa cookie DEAD khỏi Supabase."""
+    """Xóa cookie khỏi Supabase bằng raw_line."""
     client = _get_client()
     if client is None or not raw_line:
         return
@@ -504,3 +504,136 @@ def delete_cookie(raw_line):
         client.table("cookies").delete().eq("raw_line", raw_line).execute()
     except Exception as e:
         logger.warning("delete_cookie failed: %s", e)
+
+
+def delete_cookie_by_id(cookie_id):
+    """Xóa cookie dứt điểm theo ID (an toàn, không miss)."""
+    client = _get_client()
+    if client is None or not cookie_id:
+        return False
+    try:
+        client.table("cookies").delete().eq("id", cookie_id).execute()
+        return True
+    except Exception as e:
+        logger.warning("delete_cookie_by_id failed for id=%s: %s", cookie_id, e)
+        return False
+
+
+def purge_dead_cookies(limit=100):
+    """
+    Xóa toàn bộ cookie có status='dead' khỏi DB.
+    Chạy định kỳ sau mỗi batch để giữ pool cookie luôn sạch sẽ.
+    """
+    client = _get_client()
+    if client is None:
+        return 0
+    try:
+        # Lấy danh sách ID dead trước để delete
+        res = (
+            client.table("cookies")
+            .select("id")
+            .eq("website_name", "Netflix")
+            .eq("status", "dead")
+            .limit(limit)
+            .execute()
+        )
+        rows = res.data or []
+        if not rows:
+            return 0
+        ids = [r["id"] for r in rows if "id" in r]
+        if ids:
+            client.table("cookies").delete().in_("id", ids).execute()
+            logger.info("Purged %d dead cookies from Supabase", len(ids))
+            return len(ids)
+        return 0
+    except Exception as e:
+        logger.warning("purge_dead_cookies failed: %s", e)
+        return 0
+
+
+def get_cookies_to_check(batch_size=20, recheck_hours=24):
+    """
+    Lấy batch cookie cần check tự động:
+    Ưu tiên 1: status = 'unknown' (chưa check bao giờ)
+    Ưu tiên 2: status = 'green' và đã quá recheck_hours (cũ nhất check trước)
+    Không bao giờ lấy status = 'dead'
+    """
+    client = _get_client()
+    if client is None:
+        return []
+    
+    # 1. Thử lấy cookie unknown trước
+    try:
+        res = (
+            client.table("cookies")
+            .select("id, raw_line, status, check_fail_count")
+            .eq("website_name", "Netflix")
+            .eq("status", "unknown")
+            .order("id")
+            .limit(batch_size)
+            .execute()
+        )
+        rows = res.data or []
+        if rows:
+            return rows
+    except Exception as e:
+        logger.warning("get_cookies_to_check (unknown) failed: %s", e)
+
+    # 2. Nếu hết unknown, lấy cookie green cũ cần re-verify
+    try:
+        cutoff = (
+            datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=recheck_hours)
+        ).isoformat()
+        res = (
+            client.table("cookies")
+            .select("id, raw_line, status, check_fail_count")
+            .eq("website_name", "Netflix")
+            .eq("status", "green")
+            .or_(f"last_checked_at.is.null,last_checked_at.lt.{cutoff}")
+            .order("last_checked_at", nullsfirst=True)
+            .limit(batch_size)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        logger.warning("get_cookies_to_check (green re-check) failed: %s", e)
+        return []
+
+
+def update_cookie_check_result(
+    cookie_id,
+    status,
+    fail_count=0,
+    last_check_error=None,
+    country_code=None,
+    plan_name=None,
+    email=None,
+    dead_reason=None,
+):
+    """Cập nhật kết quả check kèm strike fail_count."""
+    client = _get_client()
+    if client is None or not cookie_id:
+        return False
+    fields = {
+        "status": status,
+        "check_fail_count": fail_count,
+        "last_checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    if last_check_error is not None:
+        fields["last_check_error"] = str(last_check_error)
+    if dead_reason is not None:
+        fields["dead_reason"] = str(dead_reason)
+    if country_code:
+        fields["country_code"] = country_code.upper()
+    if plan_name:
+        fields["plan_name"] = str(plan_name)
+    if email:
+        fields["email"] = str(email)
+    
+    try:
+        client.table("cookies").update(fields).eq("id", cookie_id).execute()
+        return True
+    except Exception as e:
+        logger.warning("update_cookie_check_result failed for id=%s: %s", cookie_id, e)
+        return False
+
