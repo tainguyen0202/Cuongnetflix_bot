@@ -10,8 +10,16 @@ Supabase is the source of truth. The bot:
 
 import logging
 import os
+import sys
 import threading
 import time
+
+# Đảm bảo in UTF-8 không lỗi charmap trên Windows console
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 from telegram import Update, BotCommand
 from telegram.ext import (
