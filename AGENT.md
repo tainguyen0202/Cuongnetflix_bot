@@ -6,9 +6,13 @@
 Bot Telegram `@cuongnetflix_bot` tạo link đăng nhập Netflix từ pool cookie. Supabase là
 source of truth (cookie pool + profile/quota). Bot là worker mỏng: check cookie, gen
 NFToken + 3 device links, phục vụ web API (check-cookie/batch-check). Deploy lên
-Tranger Cloud (`cloud.tranger.xyz`) — Python runtime, port 8081.
+Tranger Cloud (`cloud.tranger.xyz`) gói Starter: 0.15 vCPU / 0.15 GB RAM (150MB RAM limit),
+256MB storage, giới hạn 20MB zip upload, Python runtime, port 8081.
 
 ## Current Status
+- Dùng chung Supabase project: `https://jvokfclberwizzeqmfnc.supabase.co`.
+- Bảng cốt lõi: `cookies`, `profiles`, `telegram_links` đã kích hoạt Supabase Realtime publication.
+- Tối ưu bộ nhớ: `gc.collect()` dọn RAM sau mỗi batch check, `connection_pool_size=5`.
 - Bot mới (thay thế `netflix-bot-tele` cũ đã xóa — bot cũ dùng file cục bộ, không Supabase).
 - Cookie pool load từ Supabase `cookies` table (website_name='Netflix', status != 'dead').
 - Quota/plan đọc-ghi trực tiếp trên `profiles` table (web quản lý plan qua SePay webhook).

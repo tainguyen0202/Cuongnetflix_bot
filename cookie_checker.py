@@ -165,6 +165,10 @@ def _checker_loop():
             if purged > 0:
                 logger.info(f"🧹 Purged {purged} additional dead cookies in this cycle.")
 
+            # Thu gom rác giải phóng RAM ngay cho container Tranger Cloud (0.15 GB RAM)
+            import gc
+            gc.collect()
+
         except Exception as e:
             logger.error(f"Unexpected error in checker loop: {e}", exc_info=True)
 

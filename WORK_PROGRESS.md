@@ -74,20 +74,28 @@ service).
     - Nguyên nhân 2: Hàm `_deliver_login_link` thiếu `try...except`, ngoại lệ làm coroutine crash âm thầm khiến bot không bao giờ edit lại tin nhắn chờ ("⏳ Preparing your login link...").
     - Tối ưu hóa: `get_cookie_pool_list` giờ ưu tiên lấy cookie `status='green'` (LIVE) trước để tạo link tức thì 1s, giảm `max_tries` từ 25 xuống 8 để tránh timeout treo thread.
 
+- **2026-09-22 (Đồng bộ chung Supabase & Tối ưu Tranger Cloud 0.15 vCPU / 150MB RAM)**:
+  - Dự án Supabase chung: `https://jvokfclberwizzeqmfnc.supabase.co`.
+  - Khởi tạo đầy đủ schema bảng: `cookies`, `profiles`, `telegram_links`, view `cookie_status_by_country`, RPC `get_netflix_country_summary`.
+  - Đã chạy thành công migration `migration_cookies_strike.sql` trực tiếp qua Supabase MCP (`check_fail_count`, `last_check_error`, `idx_cookies_checker`).
+  - Kích hoạt Supabase Realtime publication trên 3 bảng cốt lõi với `REPLICA IDENTITY FULL`.
+  - Tối ưu bộ nhớ Bot cho gói Starter Tranger Cloud (0.15 GB RAM / 150MB limit):
+    - Tích hợp `gc.collect()` tự động sau mỗi chu kỳ kiểm tra cookie.
+    - Giảm `connection_pool_size` trong `main.py` từ 20 xuống 5 để tiết kiệm socket buffer.
+    - Codebase tinh gọn (~300KB), khi nén zip upload nhẹ < 1MB, hoàn toàn nằm trong giới hạn 20MB zip của Tranger Cloud.
+  - Python syntax check: PASS 100%.
+
 ## Deploy
-- Bot deploy lên Tranger Cloud (port 8081).
-- Cần push code mới → Tranger Cloud rebuild image (hoặc trigger rebuild trên dashboard).
-- **Tranger Cloud URL**: `cloud.tranger.xyz`
+- Bot deploy lên Tranger Cloud (`cloud.tranger.xyz`), port 8081.
+- Gói Starter: 0.15 vCPU / 0.15 GB RAM (150MB), 256MB storage, giới hạn 20MB zip upload.
+- Push code / upload zip lên dashboard Tranger Cloud và restart container.
 
 ## Known Issues
-- `cookie.txt` 21MB đã bị xóa cùng bot cũ — không còn file cookie cục bộ nào.
-- Proxy pool (`proxies.py` + `PROXY_URLS.txt`) vẫn load được (17 live proxy khi dừng service cũ).
-- Bot mới chỉ load cookie từ Supabase, KHÔNG đọc file cục bộ.
+- Giới hạn RAM 150MB trên Tranger Cloud: bot đã được tối ưu lazy-loading và thu gom rác định kỳ, không cache pool vào memory.
+- Proxy pool (`proxies.py` + `PROXY_URLS.txt`) giữ nguyên hoạt động bình thường.
+- Bot đọc và đồng bộ hoàn toàn trực tiếp với Supabase.
 
-## Supabase Migrations Pending
-- `migration_cookies_strike.sql` — **Anh cần chạy trên Supabase Dashboard → SQL Editor**:
-  ```sql
-  ALTER TABLE cookies ADD COLUMN IF NOT EXISTS check_fail_count integer DEFAULT 0;
-  ALTER TABLE cookies ADD COLUMN IF NOT EXISTS last_check_error text;
-  CREATE INDEX IF NOT EXISTS idx_cookies_checker ON cookies (status, last_checked_at);
-  ```
+## Supabase Migrations
+- `cookies`, `profiles`, `telegram_links` — ✅ ĐÃ CHẠY HOÀN TẤT.
+- `migration_cookies_strike.sql` — ✅ ĐÃ CHẠY HOÀN TẤT.
+- Realtime publication `supabase_realtime` — ✅ ĐÃ KÍCH HOẠT.

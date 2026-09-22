@@ -135,7 +135,7 @@ def main():
 
     request = HTTPXRequest(
         connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0,
-        pool_timeout=30.0, connection_pool_size=20,
+        pool_timeout=30.0, connection_pool_size=5,
     )
     app = (
         ApplicationBuilder()
