@@ -27,6 +27,7 @@ from lang import t
 from supabase_client import (
     bind_telegram_to_profile,
     consume_quota,
+    delete_cookie,
     downgrade_expired,
     expire_telegram_link,
     get_cookie_pool_list,
@@ -97,7 +98,7 @@ def _find_and_generate_login_link():
     if not pool:
         return None, "Không có cookie trong pool. Vui lòng thử lại sau.", None
 
-    max_tries = min(len(pool), 25)
+    max_tries = min(len(pool), 8)
     used = set()
     for _ in range(max_tries):
         idx = random.randrange(len(pool))
@@ -221,74 +222,84 @@ async def _deliver_login_link(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     searching = await msg.reply_text(t("searching", lang), parse_mode=ParseMode.HTML)
 
-    loop = asyncio.get_event_loop()
-    link, error, payload = await loop.run_in_executor(_executor, _find_and_generate_login_link)
+    try:
+        loop = asyncio.get_event_loop()
+        link, error, payload = await loop.run_in_executor(_executor, _find_and_generate_login_link)
 
-    if not link:
+        if not link:
+            await searching.edit_text(
+                f"❌ {error or 'Không thể tạo link. Vui lòng thử lại sau.'}",
+                parse_mode=ParseMode.HTML,
+            )
+            return False
+
+        # Áp dụng shrinkme gate cho free users — FAIL-CLOSED: API lỗi → báo lỗi hệ thống
+        # link vượt, KHÔNG fallback link gốc (yêu cầu nghiệp vụ).
+        plan = profile.get("plan") or "free"
+        if plan == "free":
+            # shorten() là I/O blocking → chạy trong executor để không chặn event loop
+            shortened = await loop.run_in_executor(_executor, shorten, link)
+            if not shortened:
+                await searching.edit_text(
+                    t("gate_error", lang),
+                    parse_mode=ParseMode.HTML,
+                )
+                return False
+            gate_text, gate_keyboard = _build_free_gate_message(shortened, lang)
+            await searching.edit_text(
+                gate_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=gate_keyboard,
+                disable_web_page_preview=True,
+            )
+            return True
+
+        # Trừ quota (chỉ basic/pro)
+        quota_left = get_quota_left(profile)
+        quota_limit = int(profile.get("quota_limit") or 0)
+        if profile.get("plan") not in (None, "free") and quota_left > 0:
+            updated = consume_quota(profile)
+            if updated:
+                quota_left = get_quota_left(updated)
+            else:
+                # Quota exhausted — go through shrinkme gate (like free)
+                plan = "free"
+
+        # FREE or quota-exhausted basic/pro → shrinkme gate
+        if plan == "free":
+            shortened = await loop.run_in_executor(_executor, shorten, link)
+            if not shortened:
+                await searching.edit_text(
+                    t("gate_error", lang),
+                    parse_mode=ParseMode.HTML,
+                )
+                return False
+            gate_text, gate_keyboard = _build_free_gate_message(shortened, lang)
+            await searching.edit_text(
+                gate_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=gate_keyboard,
+                disable_web_page_preview=True,
+            )
+            return True
+
         await searching.edit_text(
-            f"❌ {error or 'Không thể tạo link. Vui lòng thử lại sau.'}",
+            _build_loginlink_message(link, payload, quota_left, quota_limit, lang),
             parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
         )
+        return True
+
+    except Exception as e:
+        logger.error(f"Error in _deliver_login_link: {e}", exc_info=True)
+        try:
+            await searching.edit_text(
+                "❌ Có lỗi xảy ra trong quá trình xử lý. Vui lòng thử lại sau.",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
         return False
-
-    # Áp dụng shrinkme gate cho free users — FAIL-CLOSED: API lỗi → báo lỗi hệ thống
-    # link vượt, KHÔNG fallback link gốc (yêu cầu nghiệp vụ).
-    plan = profile.get("plan") or "free"
-    if plan == "free":
-        # shorten() là I/O blocking → chạy trong executor để không chặn event loop
-        loop = asyncio.get_event_loop()
-        shortened = await loop.run_in_executor(_executor, shorten, link)
-        if not shortened:
-            await searching.edit_text(
-                t("gate_error", lang),
-                parse_mode=ParseMode.HTML,
-            )
-            return False
-        gate_text, gate_keyboard = _build_free_gate_message(shortened, lang)
-        await searching.edit_text(
-            gate_text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=gate_keyboard,
-            disable_web_page_preview=True,
-        )
-        return True
-
-    # Trừ quota (chỉ basic/pro)
-    quota_left = get_quota_left(profile)
-    quota_limit = int(profile.get("quota_limit") or 0)
-    if profile.get("plan") not in (None, "free") and quota_left > 0:
-        updated = consume_quota(profile)
-        if updated:
-            quota_left = get_quota_left(updated)
-        else:
-            # Quota exhausted — go through shrinkme gate (like free)
-            plan = "free"
-
-    # FREE or quota-exhausted basic/pro → shrinkme gate
-    if plan == "free":
-        loop = asyncio.get_event_loop()
-        shortened = await loop.run_in_executor(_executor, shorten, link)
-        if not shortened:
-            await searching.edit_text(
-                t("gate_error", lang),
-                parse_mode=ParseMode.HTML,
-            )
-            return False
-        gate_text, gate_keyboard = _build_free_gate_message(shortened, lang)
-        await searching.edit_text(
-            gate_text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=gate_keyboard,
-            disable_web_page_preview=True,
-        )
-        return True
-
-    await searching.edit_text(
-        _build_loginlink_message(link, payload, quota_left, quota_limit, lang),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True,
-    )
-    return True
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -69,8 +69,10 @@ service).
   - Tự động dọn dẹp sạch sẽ: hàm `purge_dead_cookies()` quét và xóa toàn bộ cookie dead còn sót sau mỗi batch.
   - Migration SQL `migration_cookies_strike.sql` — anh chạy trên Supabase Dashboard → SQL Editor.
   - **Fix bug**: Dockerfile COPY tường minh → quên thêm `cookie_checker.py` → `ModuleNotFoundError` khi deploy.
-    Fix: thêm `cookie_checker.py` vào dòng COPY Dockerfile + commit riêng `8a96e78`.
-  - Rule mới thêm vào `AGENT.md`: mỗi khi tạo file Python mới BẮT BUỘC update Dockerfile ngay lập tức.
+  - **Fix bug /loginlink bị pending mãi mãi**:
+    - Nguyên nhân 1: Thiếu import `delete_cookie` trong `handlers.py` khiến Python văng `NameError: name 'delete_cookie' is not defined` khi gặp cookie chết.
+    - Nguyên nhân 2: Hàm `_deliver_login_link` thiếu `try...except`, ngoại lệ làm coroutine crash âm thầm khiến bot không bao giờ edit lại tin nhắn chờ ("⏳ Preparing your login link...").
+    - Tối ưu hóa: `get_cookie_pool_list` giờ ưu tiên lấy cookie `status='green'` (LIVE) trước để tạo link tức thì 1s, giảm `max_tries` từ 25 xuống 8 để tránh timeout treo thread.
 
 ## Deploy
 - Bot deploy lên Tranger Cloud / JustRunMy.App (port 8081).

@@ -144,22 +144,39 @@ def get_cookie_pool_batch(batch_size=_COOKIE_CHECK_BATCH):
 def get_cookie_pool_list(limit=200):
     """
     Trả về list cookie (tối đa limit phần tử) để handlers.py random access.
-    Không load toàn bộ pool - chỉ lấy limit đầu tiên.
+    Ưu tiên lấy cookie 'green' (đã check LIVE) trước để tạo link tức thì.
+    Nếu không đủ thì lấy thêm cookie 'unknown'.
     """
     client = _get_client()
     if client is None:
         return []
     try:
-        res = (
+        # 1. Ưu tiên lấy cookie đã check LIVE (status='green')
+        res_green = (
             client.table("cookies")
             .select("id, raw_line")
             .eq("website_name", "Netflix")
-            .neq("status", "dead")
-            .order("id")
+            .eq("status", "green")
             .limit(limit)
             .execute()
         )
-        return [r["raw_line"] for r in (res.data or []) if r.get("raw_line")]
+        pool = [r["raw_line"] for r in (res_green.data or []) if r.get("raw_line")]
+        if len(pool) >= limit:
+            return pool
+
+        # 2. Bổ sung thêm cookie 'unknown' nếu chưa đủ
+        needed = limit - len(pool)
+        res_unknown = (
+            client.table("cookies")
+            .select("id, raw_line")
+            .eq("website_name", "Netflix")
+            .eq("status", "unknown")
+            .order("id")
+            .limit(needed)
+            .execute()
+        )
+        pool.extend([r["raw_line"] for r in (res_unknown.data or []) if r.get("raw_line")])
+        return pool
     except Exception as e:
         logger.warning("get_cookie_pool_list failed: %s", e)
         return []
