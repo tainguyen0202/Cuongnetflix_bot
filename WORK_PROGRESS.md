@@ -9,7 +9,7 @@ bot cũ (`netflix-bot-tele`) dùng file cục bộ — đã dọn sạch repo (z
 service).
 
 ## Baseline (2026-09-11)
-- Bot mới (`netflix-bot-new`) đã deploy lên JustRunMy.App, hoạt động.
+- Bot mới (`netflix-bot-new`) đã deploy lên Tranger Cloud, hoạt động.
 - Bot cũ (`netflix-bot-tele`) đã zip backup ra `/root/backups/netflix-bot-tele-backup.tar.gz`,
   xóa khỏi repo, disable service `netflix-bot.service`.
 
@@ -24,7 +24,7 @@ service).
 - [x] Python syntax check PASS
 - [x] Fix 409 conflict: `bind_telegram_to_profile` xóa profile trùng trước khi gán
 - [x] Dọn sạch Supabase: xóa 456 profiles bot cũ, 4 orders, 2 telegram_links
-- [x] Deploy bot rebuild + restart trên JustRunMy.App
+- [x] Deploy bot rebuild + restart trên Tranger Cloud
 - [x] Test end-to-end: tạo token → gán telegram_id → linked → poll OK
 - [x] Auto cookie live/die checker + auto purge dead cookies
 - [x] Fix Dockerfile: thêm `cookie_checker.py` vào dòng COPY
@@ -47,14 +47,14 @@ service).
       telegram_links, reset telegram_id. Chỉ giữ 16 profile web uuid. 2 user bot cũ
       mất gói basic/pro (vy, Taylor) — sẽ tự liên hệ cấp lại.
     - Test end-to-end: tạo token → gán telegram_id (không 409) → linked → poll OK.
-    - Deploy bot lên JustRunMy.App (rebuild + restart). Verify bot logs: 2026 cookies
+    - Deploy bot lên Tranger Cloud (rebuild + restart). Verify bot logs: 2026 cookies
       loaded, polling OK, không lỗi.
 - **2026-09-18 (tối ưu tốc độ ra link nftoken)**:
   - Bỏ `validate_nftoken()` khỏi luồng chính trong `handlers.py` để giảm độ trễ.
   - Luồng hiện tại: chọn cookie → `check_cookie()` → `generate_nftoken()` → trả link/login.
   - Giữ hàm `validate_nftoken()` trong `checker.py` để dùng lại sau nếu cần.
   - Web vẫn gọi `/api/check-cookie` như cũ; phản hồi nhận token + link nhanh hơn.
-  - Đã push `main` + `build` lên JustRunMy.App, rebuild image và restart app `62239`.
+  - Đã push `main` lên Tranger Cloud, rebuild image và restart app.
   - Verify container: `/app/handlers.py` không còn gọi `validate_nftoken()`.
 - **2026-09-18 (Netflix-only cookie pool complete)**:
   - Import 12,039 Netflix cookie từ `Web-cuongnetflix/Cookies/` vào Supabase `cookies` table.
@@ -75,7 +75,7 @@ service).
     - Tối ưu hóa: `get_cookie_pool_list` giờ ưu tiên lấy cookie `status='green'` (LIVE) trước để tạo link tức thì 1s, giảm `max_tries` từ 25 xuống 8 để tránh timeout treo thread.
 
 ## Deploy
-- Bot deploy lên Tranger Cloud / JustRunMy.App (port 8081).
+- Bot deploy lên Tranger Cloud (port 8081).
 - Cần push code mới → Tranger Cloud rebuild image (hoặc trigger rebuild trên dashboard).
 - **Tranger Cloud URL**: `cloud.tranger.xyz`
 
