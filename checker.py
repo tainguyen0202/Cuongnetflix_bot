@@ -367,8 +367,9 @@ def parse_account_info(decoded_html):
         hold_reason = "Payment Hold (Cờ hệ thống: isUserOnHold/SERVICE_END_PAYMENT_FAILURE)"
 
     # 2. Kiểm tra chuỗi thông báo nợ cước / không xem được phim (đa ngôn ngữ: Anh, Thái, Việt, Tây Ban Nha, Bồ Đào Nha...)
+    # Lưu ý: Thai/Việt non-ASCII được check ở _check_hold_in_raw() (trên raw_text gốc)
+    # trước khi decode_response làm hỏng chúng. Ở đây chỉ cần check decoded (ASCII-safe).
     if not is_on_hold:
-        decoded_lower = decoded_html.lower()
         hold_phrases = [
             "update your payment information to continue",
             "we were unable to process your last payment",
@@ -391,11 +392,13 @@ def parse_account_info(decoded_html):
             "atualize suas informações de pagamento",
             "não foi possível processar seu pagamento",
         ]
+        decoded_lower = decoded_html.lower()
         for phrase in hold_phrases:
             if phrase.lower() in decoded_lower:
                 is_on_hold = True
                 hold_reason = f"Payment Hold ({phrase})"
                 break
+
 
     if is_on_hold:
         logger.info(f"Cookie Hard DEAD - {hold_reason}")
@@ -512,7 +515,101 @@ def parse_cookie_line(raw_line):
     return netflix_id, secure_id, extras
 
 
+_HOLD_PHRASES_RAW = [
+    # Tiếng Anh
+    "update your payment information to continue",
+    "we were unable to process your last payment",
+    "update payment method",
+    "update payment info",
+    "your account is on hold",
+    "membership is on hold",
+    "account is on hold",
+    "please update your payment information",
+    "body_pay_now_member_hold",
+    "credit_hold_bundle",
+    # Tiếng Thái (giữ nguyên UTF-8, KHÔNG qua decode_response)
+    "อัปเดตข้อมูลการชำระเงิน",
+    "ไม่สามารถเรียกเก็บค่าบริการได้",
+    "อัปเดตวิธีการชำระเงิน",
+    # Tiếng Việt
+    "cập nhật thông tin thanh toán",
+    "không thể xử lý thanh toán",
+    "tài khoản tạm ngưng",
+    # Tiếng Tây Ban Nha & Bồ Đào Nha
+    "actualiza tu información de pago",
+    "actualizar información de pago",
+    "atualize suas informações de pagamento",
+    "não foi possível processar seu pagamento",
+]
+
+# JSON flags dứt khoát (xuất hiện ở cả account và browse page)
+_HOLD_JSON_PATTERNS = [
+    r'"isUserOnHold"\s*:\s*true',
+    r'"isOnHold"\s*:\s*true',
+    r'"isInHold"\s*:\s*true',
+    r'"accountOnHold"\s*:\s*true',
+    r'"hasFeatureOnlyHold"\s*:\s*true',
+    r'"serviceEndReason"\s*:\s*"[^"]*PAYMENT[^"]*"',
+    r'"canWatch"\s*:\s*false',
+    r'"hasValidPaymentMethod"\s*:\s*false',
+    r'"paymentStatus"\s*:\s*"(?:FAILED|PAST_DUE|HOLD)"',
+]
+
+
+def _check_hold_in_raw(raw_text):
+    """
+    Kiểm tra on-hold trực tiếp trên raw HTML text (TRƯỚC decode_response).
+    decode_response() dùng raw_unicode_escape làm hỏng ký tự Thai/Việt non-ASCII,
+    nên phải check raw_text trước để bắt đúng các cụm từ đa ngôn ngữ.
+    Trả về dead_reason string hoặc None nếu không phát hiện.
+    """
+    if not raw_text:
+        return None
+    text_lower = raw_text.lower()
+    # 1. Check JSON flags (ASCII-safe, không bị ảnh hưởng bởi decode)
+    for pat in _HOLD_JSON_PATTERNS:
+        if re.search(pat, raw_text, re.IGNORECASE):
+            return "Payment Hold (JSON flag)"
+    # 2. Check hold phrases (giữ đúng encoding gốc, kể cả Thai/Việt UTF-8)
+    for phrase in _HOLD_PHRASES_RAW:
+        if phrase.lower() in text_lower:
+            return f"Payment Hold ({phrase[:60]})"
+    return None
+
+
+def _check_browse_for_hold(session, cookies, timeout=(8, 15)):
+    """
+    Secondary check: GET /browse với cookie hiện tại để phát hiện payment-hold modal.
+    Tài khoản bị hold vẫn trả dữ liệu đầy đủ trên /account nhưng /browse
+    sẽ hiện modal "update payment information" → checker sẽ bắt được.
+    Trả về dead_reason string hoặc None nếu không phát hiện / có lỗi.
+    """
+    try:
+        browse_url = "https://www.netflix.com/browse"
+        r = session.get(
+            browse_url,
+            cookies=cookies,
+            allow_redirects=True,
+            timeout=timeout,
+        )
+        if r.status_code in (403, 429) or r.status_code >= 500:
+            return None  # Throttled / server error → không đánh DEAD oan
+
+        # Check redirect tới trang payment
+        final_url = str(getattr(r, 'url', '') or '').lower()
+        if any(p in final_url for p in ("editpayment", "updatepayment", "paymentmethod", "payment-hold")):
+            return "Payment Hold (browse redirect payment)"
+
+        # Check raw HTML của browse page
+        raw = r.text or ""
+        return _check_hold_in_raw(raw)
+    except Exception as e:
+        logger.debug(f"_check_browse_for_hold error (non-critical): {e}")
+        return None
+
+
 def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
+
     """Check cookie status - matched with bot cũ (net_fixed.py) logic for accuracy.
 
     Chỉ check MỘT lần duy nhất (không double-confirm). direct=True → gọi thẳng
@@ -581,7 +678,22 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
             }
 
         # Parse the page
-        decoded = decode_response(r.text or "")
+        raw_text = r.text or ""
+        decoded = decode_response(raw_text)
+
+        # ── BUG FIX: Check on-hold trực tiếp trên raw_text (trước decode) ──
+        # decode_response dùng raw_unicode_escape làm hỏng ký tự Thai/Việt.
+        # Các cụm từ hold tiếng Thái/Việt chỉ match được trên raw_text gốc.
+        hold_result = _check_hold_in_raw(raw_text)
+        if hold_result:
+            logger.info(f"check_cookie: on-hold detected in raw HTML → {hold_result}")
+            return {
+                "status": "DEAD",
+                "is_hard_dead": True,
+                "is_soft_dead": False,
+                "dead_reason": hold_result,
+            }
+
         info = parse_account_info(decoded)
 
         # Nếu parse_account_info đã phát hiện DEAD thì return luôn
@@ -606,6 +718,19 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
             nfvdid_match2 = re.search(r"nfvdid=([^;\s\"]+)", decoded)
             if nfvdid_match2:
                 all_cookies["nfvdid"] = nfvdid_match2.group(1)
+
+        # ── SECONDARY CHECK: hit /browse để phát hiện on-hold modal ──
+        # Account page (/account) vẫn trả dữ liệu bình thường cho tài khoản bị
+        # Payment Hold. Modal "update payment" chỉ xuất hiện khi vào /browse.
+        browse_hold = _check_browse_for_hold(session, cookies)
+        if browse_hold:
+            logger.info(f"check_cookie: on-hold detected via /browse → {browse_hold}")
+            return {
+                "status": "DEAD",
+                "is_hard_dead": True,
+                "is_soft_dead": False,
+                "dead_reason": browse_hold,
+            }
 
         info["_cookies"] = all_cookies
         return info

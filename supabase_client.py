@@ -138,7 +138,32 @@ def get_cookie_pool_batch(batch_size=_COOKIE_CHECK_BATCH):
         return [r["raw_line"] for r in (res.data or []) if r.get("raw_line")]
     except Exception as e:
         logger.warning("get_cookie_pool_batch failed: %s", e)
-        return []
+    
+    # 3. UU TIEN SO 3: Cookie bi stuck voi status khong chuan (khong phai green/unknown/dead)
+    # Vi du: on_hold, die, hoac bat ky gia tri nao khac do import cu / loi logic.
+    # Chung se khong bao gio duoc pick o priority 1 va 2 - bi stuck mai mai.
+    try:
+        res = (
+            client.table("cookies")
+            .select("id, raw_line, status, check_fail_count")
+            .eq("website_name", "Netflix")
+            .not_.in_("status", ["green", "unknown", "dead"])
+            .order("id")
+            .limit(batch_size)
+            .execute()
+        )
+        rows = res.data or []
+        if rows:
+            logger.info(
+                "get_cookies_to_check: %d stuck cookies with unknown status: %s",
+                len(rows),
+                list({r.get("status") for r in rows}),
+            )
+            return rows
+    except Exception as e:
+        logger.warning("get_cookies_to_check (stuck status) failed: %s", e)
+
+    return []
 
 
 def get_cookie_pool_list(limit=200):
