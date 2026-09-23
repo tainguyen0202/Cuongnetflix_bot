@@ -48,7 +48,7 @@ STRINGS = {
             "1️⃣ <b>Copy</b> link bên dưới & mở bằng <b>trình duyệt bên ngoài</b> (Chrome/Safari)\n"
             "2️⃣ Chờ 5 giây rồi bấm <b>Continue</b> / <b>Bỏ qua quảng cáo</b>\n"
             "3️⃣ Link Netflix thật sẽ hiện ra sau khi vượt link\n\n"
-            "💎 Nâng cấp <b>Basic/Pro</b> để nhận link trực tiếp, không cần vượt quảng cáo!"
+            "💎 Nâng cấp <b>VIP</b> để nhận link trực tiếp, không cần vượt quảng cáo!"
         ),
         "link_shrinkme_btn": "🔗 Mở link (quảng cáo)",
         "link_shrinkme_note": "ℹ️ Gói Free: copy link ra trình duyệt bên ngoài để vượt.",
@@ -58,7 +58,7 @@ STRINGS = {
         "link_already": "✅ Tài khoản Telegram này đã được liên kết với tài khoản web.\n\n🍿 Gõ /loginlink để nhận link xem phim!",
         "link_expired": "⌛ Liên kết đã hết hạn (10 phút).\n\n👉 Vui lòng vào web và bấm <b>Liên kết Telegram</b> để tạo liên kết mới.",
         "link_confirm_body": "🔐 <b>XÁC NHẬN LIÊN KẾT</b>\n\nBạn muốn liên kết tài khoản Telegram này với tài khoản web:\n📧 {email}\n\nĐúng email của bạn chứ?",
-        "link_success": "✅ <b>Liên kết thành công!</b>\n\n📧 Web: {email}\n\n🍿 Gói Basic/Pro trên web sẽ được đồng bộ — dùng /loginlink để nhận link trực tiếp, không cần vượt quảng cáo!",
+        "link_success": "✅ <b>Liên kết thành công!</b>\n\n📧 Web: {email}\n\n🍿 Gói VIP trên web sẽ được đồng bộ — dùng /loginlink để nhận link trực tiếp, không cần vượt quảng cáo!",
         "link_failed": "❌ Liên kết thất bại. Vui lòng thử lại sau ít phút hoặc liên hệ Admin.",
         "link_cancelled": "❌ Đã hủy liên kết. Bạn có thể tạo liên kết mới bất cứ lúc nào từ web.",
         "link_session_expired": "⌛ Phiên xác nhận đã hết. Vui lòng tạo liên kết mới từ web.",
@@ -117,7 +117,7 @@ STRINGS = {
             "1️⃣ <b>Copy</b> the link below & open it in an <b>external browser</b> (Chrome/Safari)\n"
             "2️⃣ Wait 5 seconds then press <b>Continue</b> / <b>Skip Ad</b>\n"
             "3️⃣ The real Netflix link will appear after you pass the gate\n\n"
-            "💎 Upgrade to <b>Basic/Pro</b> to receive direct links, no ads!"
+            "💎 Upgrade to <b>VIP</b> to receive direct links, no ads!"
         ),
         "link_shrinkme_btn": "🔗 Open link (ads)",
         "link_shrinkme_note": "ℹ️ Free plan: copy the link into an external browser to pass the gate.",
@@ -127,7 +127,7 @@ STRINGS = {
         "link_already": "✅ This Telegram account is already linked to a web account.\n\n🍿 Type /loginlink to get a movie link!",
         "link_expired": "⌛ The link has expired (10 minutes).\n\n👉 Please open the website and tap <b>Link Telegram</b> to create a new one.",
         "link_confirm_body": "🔐 <b>CONFIRM LINKING</b>\n\nDo you want to link this Telegram account with the web account:\n📧 {email}\n\nIs this your email?",
-        "link_success": "✅ <b>Linked successfully!</b>\n\n📧 Web: {email}\n\n🍿 Your Basic/Pro plan from the web will be synced — use /loginlink to get direct links, no ads!",
+        "link_success": "✅ <b>Linked successfully!</b>\n\n📧 Web: {email}\n\n🍿 Your VIP plan from the web will be synced — use /loginlink to get direct links, no ads!",
         "link_failed": "❌ Linking failed. Please try again in a few minutes or contact Admin.",
         "link_cancelled": "❌ Linking cancelled. You can create a new link anytime from the website.",
         "link_session_expired": "⌛ Confirmation session expired. Please create a new link from the website.",

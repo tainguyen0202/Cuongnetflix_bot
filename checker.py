@@ -344,6 +344,48 @@ def parse_account_info(decoded_html):
         result["dead_reason"] = f"Membership: {membership}"
         return result
     
+    # ═══ PHÁT HIỆN PAYMENT HOLD / ON HOLD (Lỗi thanh toán - Không xem được phim) ═══
+    is_on_hold = False
+    hold_reason = ""
+
+    # 1. Kiểm tra cờ JSON trong decoded_html
+    if (
+        re.search(r'"isOnHold"\s*:\s*true', decoded_html, re.IGNORECASE)
+        or re.search(r'"isInHold"\s*:\s*true', decoded_html, re.IGNORECASE)
+        or re.search(r'"accountOnHold"\s*:\s*true', decoded_html, re.IGNORECASE)
+        or re.search(r'"canWatch"\s*:\s*false', decoded_html, re.IGNORECASE)
+        or re.search(r'"hasValidPaymentMethod"\s*:\s*false', decoded_html, re.IGNORECASE)
+        or re.search(r'"paymentStatus"\s*:\s*"(?:FAILED|PAST_DUE|HOLD)"', decoded_html, re.IGNORECASE)
+    ):
+        is_on_hold = True
+        hold_reason = "Payment Hold (Cờ hệ thống: isOnHold/canWatch=false)"
+
+    # 2. Kiểm tra chuỗi thông báo nợ cước / không xem được phim
+    if not is_on_hold:
+        decoded_lower = decoded_html.lower()
+        hold_phrases = [
+            "update your payment information to continue",
+            "we were unable to process your last payment",
+            "update payment method",
+            "your account is on hold",
+            "membership is on hold",
+            "account is on hold",
+            "please update your payment information",
+        ]
+        for phrase in hold_phrases:
+            if phrase in decoded_lower:
+                is_on_hold = True
+                hold_reason = f"Payment Hold ({phrase})"
+                break
+
+    if is_on_hold:
+        logger.info(f"Cookie Hard DEAD - {hold_reason}")
+        result["status"] = "DEAD"
+        result["is_hard_dead"] = True
+        result["is_soft_dead"] = False
+        result["dead_reason"] = hold_reason
+        return result
+
     # Nếu membershipStatus là CURRENT_MEMBER → chắc chắn LIVE
     if membership == "CURRENT_MEMBER":
         result["is_hard_dead"] = False
@@ -507,6 +549,16 @@ def check_cookie(netflix_id, secure_id=None, extra_cookies=None, direct=False):
                 "is_hard_dead": False,
                 "is_soft_dead": True,
                 "dead_reason": "redirect_login",
+            }
+
+        # DEAD: final URL chuyển hướng tới trang cập nhật thẻ / thanh toán
+        if any(p in final_url for p in ("editpayment", "updatepayment", "paymentmethod", "payment-hold", "simplemember/editpayment")):
+            logger.info(f"Cookie redirect to payment update: final_url={final_url}")
+            return {
+                "status": "DEAD",
+                "is_hard_dead": True,
+                "is_soft_dead": False,
+                "dead_reason": "Payment Hold (redirect payment)",
             }
 
         # Parse the page
