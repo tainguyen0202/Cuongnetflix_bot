@@ -350,30 +350,49 @@ def parse_account_info(decoded_html):
 
     # 1. Kiểm tra cờ JSON trong decoded_html
     if (
-        re.search(r'"isOnHold"\s*:\s*true', decoded_html, re.IGNORECASE)
+        re.search(r'"isUserOnHold"\s*:\s*true', decoded_html, re.IGNORECASE)
+        or re.search(r'"isOnHold"\s*:\s*true', decoded_html, re.IGNORECASE)
         or re.search(r'"isInHold"\s*:\s*true', decoded_html, re.IGNORECASE)
         or re.search(r'"accountOnHold"\s*:\s*true', decoded_html, re.IGNORECASE)
+        or re.search(r'"hasFeatureOnlyHold"\s*:\s*true', decoded_html, re.IGNORECASE)
+        or re.search(r'"serviceEndReason"\s*:\s*"SERVICE_END_PAYMENT_FAILURE"', decoded_html, re.IGNORECASE)
+        or re.search(r'"serviceEndReason"\s*:\s*"[^"]*PAYMENT[^"]*"', decoded_html, re.IGNORECASE)
         or re.search(r'"canWatch"\s*:\s*false', decoded_html, re.IGNORECASE)
         or re.search(r'"hasValidPaymentMethod"\s*:\s*false', decoded_html, re.IGNORECASE)
         or re.search(r'"paymentStatus"\s*:\s*"(?:FAILED|PAST_DUE|HOLD)"', decoded_html, re.IGNORECASE)
+        or re.search(r'"body_pay_now_member_hold"', decoded_html, re.IGNORECASE)
+        or re.search(r'"credit_hold_bundle"', decoded_html, re.IGNORECASE)
     ):
         is_on_hold = True
-        hold_reason = "Payment Hold (Cờ hệ thống: isOnHold/canWatch=false)"
+        hold_reason = "Payment Hold (Cờ hệ thống: isUserOnHold/SERVICE_END_PAYMENT_FAILURE)"
 
-    # 2. Kiểm tra chuỗi thông báo nợ cước / không xem được phim
+    # 2. Kiểm tra chuỗi thông báo nợ cước / không xem được phim (đa ngôn ngữ: Anh, Thái, Việt, Tây Ban Nha, Bồ Đào Nha...)
     if not is_on_hold:
         decoded_lower = decoded_html.lower()
         hold_phrases = [
             "update your payment information to continue",
             "we were unable to process your last payment",
             "update payment method",
+            "update payment info",
             "your account is on hold",
             "membership is on hold",
             "account is on hold",
             "please update your payment information",
+            # Tiếng Thái (từ giao diện lỗi Netflix Thái Lan)
+            "อัปเดตข้อมูลการชำระเงิน",
+            "ไม่สามารถเรียกเก็บค่าบริการได้",
+            # Tiếng Việt
+            "cập nhật thông tin thanh toán",
+            "không thể xử lý thanh toán",
+            "tài khoản tạm ngưng",
+            # Tiếng Tây Ban Nha & Bồ Đào Nha
+            "actualiza tu información de pago",
+            "actualizar información de pago",
+            "atualize suas informações de pagamento",
+            "não foi possível processar seu pagamento",
         ]
         for phrase in hold_phrases:
-            if phrase in decoded_lower:
+            if phrase.lower() in decoded_lower:
                 is_on_hold = True
                 hold_reason = f"Payment Hold ({phrase})"
                 break

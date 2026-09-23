@@ -568,18 +568,39 @@ def purge_dead_cookies(limit=100):
         return 0
 
 
-def get_cookies_to_check(batch_size=20, recheck_hours=24):
+def get_cookies_to_check(batch_size=20, recheck_hours=12):
     """
     Lấy batch cookie cần check tự động:
-    Ưu tiên 1: status = 'unknown' (chưa check bao giờ)
-    Ưu tiên 2: status = 'green' và đã quá recheck_hours (cũ nhất check trước)
+    Ưu tiên 1: status = 'green' cần re-verify (đang phát cho khách, ưu tiên số 1 để tránh lỗi Hold/Dead)
+    Ưu tiên 2: status = 'unknown' (chưa check bao giờ)
     Không bao giờ lấy status = 'dead'
     """
     client = _get_client()
     if client is None:
         return []
-    
-    # 1. Thử lấy cookie unknown trước
+
+    # 1. ƯU TIÊN SỐ 1: Kiểm tra cookie GREEN đang live để loại bỏ ngay tài khoản bị Hold/Lỗi thanh toán
+    try:
+        cutoff = (
+            datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=recheck_hours)
+        ).isoformat()
+        res = (
+            client.table("cookies")
+            .select("id, raw_line, status, check_fail_count")
+            .eq("website_name", "Netflix")
+            .eq("status", "green")
+            .or_(f"last_checked_at.is.null,last_checked_at.lt.{cutoff}")
+            .order("last_checked_at", nullsfirst=True)
+            .limit(batch_size)
+            .execute()
+        )
+        rows = res.data or []
+        if rows:
+            return rows
+    except Exception as e:
+        logger.warning("get_cookies_to_check (green priority re-check) failed: %s", e)
+
+    # 2. ƯU TIÊN SỐ 2: Kiểm tra cookie unknown
     try:
         res = (
             client.table("cookies")
@@ -596,25 +617,7 @@ def get_cookies_to_check(batch_size=20, recheck_hours=24):
     except Exception as e:
         logger.warning("get_cookies_to_check (unknown) failed: %s", e)
 
-    # 2. Nếu hết unknown, lấy cookie green cũ cần re-verify
-    try:
-        cutoff = (
-            datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=recheck_hours)
-        ).isoformat()
-        res = (
-            client.table("cookies")
-            .select("id, raw_line, status, check_fail_count")
-            .eq("website_name", "Netflix")
-            .eq("status", "green")
-            .or_(f"last_checked_at.is.null,last_checked_at.lt.{cutoff}")
-            .order("last_checked_at", nullsfirst=True)
-            .limit(batch_size)
-            .execute()
-        )
-        return res.data or []
-    except Exception as e:
-        logger.warning("get_cookies_to_check (green re-check) failed: %s", e)
-        return []
+    return []
 
 
 def update_cookie_check_result(
