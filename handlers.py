@@ -80,9 +80,9 @@ def _build_device_links(link):
     if not token:
         return {"pc": link, "phone": link, "tv": link}
     return {
-        "pc": f"https://netflix.com/?nftoken={token}",
-        "phone": f"https://netflix.com/unsupported?nftoken={token}",
-        "tv": f"https://netflix.com/tv2?nftoken={token}",
+        "pc": f"https://www.netflix.com/browse?nftoken={token}",
+        "phone": f"https://www.netflix.com/unsupported?nftoken={token}",
+        "tv": f"https://www.netflix.com/tv2?nftoken={token}",
     }
 
 
@@ -138,11 +138,14 @@ def _find_and_generate_login_link():
         if not token:
             continue
 
-        login_link = f"https://www.netflix.com/login?nftoken={quote(token, safe='')}"
+        login_link = f"https://www.netflix.com/browse?nftoken={quote(token, safe='')}"
         payload = {
             "plan": info.get("plan") or "-",
-            "email": info.get("email") or "-",
+            "country": info.get("country") or "-",
             "billing": info.get("billing") or "-",
+            "quality": info.get("videoQuality") or info.get("quality") or "-",
+            "email": info.get("email") or "-",
+            "token_expires": "1 giờ",
         }
 
         # Cập nhật trạng thái cookie lên Supabase
@@ -159,10 +162,14 @@ def _find_and_generate_login_link():
 
 
 def _build_loginlink_message(link, payload, quota_left, quota_limit, lang="vi"):
-    """Tin nhắn kết quả nhận link — format chuẩn (Plan/Mail/Hạn + 3 link thiết bị)."""
-    account_plan = (payload or {}).get("plan") or "-"
-    email = (payload or {}).get("email") or "-"
-    billing = (payload or {}).get("billing") or "-"
+    """Tin nhắn kết quả nhận link — format chuẩn (Gói/Quốc gia/Kỳ hạn/Chất lượng/Hết hạn + Lưu ý 1h + 3 link thiết bị)."""
+    payload = payload or {}
+    account_plan = payload.get("plan") or "-"
+    country = payload.get("country") or "-"
+    billing = payload.get("billing") or "-"
+    quality = payload.get("quality") or "-"
+    email = payload.get("email") or "-"
+    token_expires = payload.get("token_expires") or "1 giờ"
 
     links = _build_device_links(link)
     admin_url = "https://t.me/" + ADMIN_TAG.lstrip("@")
@@ -170,11 +177,16 @@ def _build_loginlink_message(link, payload, quota_left, quota_limit, lang="vi"):
         t("link_header", lang),
         "",
         t("link_plan", lang, plan=escape(str(account_plan))),
-        t("link_mail", lang, email=escape(str(email))),
+        t("link_country", lang, country=escape(str(country))),
         t("link_han", lang, billing=escape(str(billing))),
-        "",
-        t("link_title", lang),
+        t("link_quality", lang, quality=escape(str(quality))),
+        t("link_expire", lang, expires=escape(str(token_expires))),
     ]
+    if email and email != "-":
+        lines.append(t("link_mail", lang, email=escape(str(email))))
+
+    lines.append("")
+    lines.append(t("link_title", lang))
     if links:
         lines.append(
             t("link_devices", lang, pc=links["pc"], phone=links["phone"], tv=links["tv"])
@@ -182,7 +194,8 @@ def _build_loginlink_message(link, payload, quota_left, quota_limit, lang="vi"):
     else:
         lines.append(f"<code>{escape(link)}</code>")
     lines.append("")
-    lines.append(t("link_expire", lang))
+    lines.append(t("link_notice", lang))
+    lines.append("")
 
     if quota_limit > 0:
         lines.append(t("link_remaining", lang, left=quota_left, limit=quota_limit))
@@ -527,3 +540,82 @@ async def cmd_loginlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plan = profile.get("plan") or "free"
 
     await _deliver_login_link(update, context, profile, lang)
+
+
+async def handle_admin_cookie_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Xử lý khi Admin nhập/paste cookie hoặc dùng /check, /gen để kiểm tra và lấy link NFToken."""
+    user = update.effective_user
+    msg = update.effective_message
+    if not user or not msg or not msg.text:
+        return
+
+    text = msg.text.strip()
+    is_cmd = text.startswith("/check") or text.startswith("/gen") or text.startswith("/cookie")
+    has_cookie = "NetflixId" in text or "netflix.com" in text
+
+    # Chỉ xử lý nếu là lệnh check/gen hoặc là Admin paste cookie
+    if not is_cmd and not (has_cookie and user.id in ADMIN_IDS):
+        return
+
+    raw_cookie = text
+    if is_cmd:
+        parts = text.split(maxsplit=1)
+        if len(parts) > 1:
+            raw_cookie = parts[1].strip()
+        else:
+            await msg.reply_text("💡 <b>Cách dùng:</b> Gửi cookie hoặc gõ <code>/check [cookie]</code>", parse_mode=ParseMode.HTML)
+            return
+
+    if "NetflixId" not in raw_cookie and "netflix.com" not in raw_cookie:
+        await msg.reply_text("❌ Không nhận diện được cookie Netflix hợp lệ (cần có NetflixId).", parse_mode=ParseMode.HTML)
+        return
+
+    lang = get_user_lang(user.id)
+    searching = await msg.reply_text("⏳ <i>Đang kiểm tra cookie & tạo NFToken...</i>", parse_mode=ParseMode.HTML)
+
+    def _process():
+        from checker import parse_cookie_line, check_cookie, generate_nftoken
+        netflix_id, secure_id, extras = parse_cookie_line(raw_cookie)
+        if not netflix_id:
+            return None, "Không tìm thấy NetflixId trong cookie", None
+        info = check_cookie(netflix_id, secure_id)
+        status = info.get("status")
+        if status == "DEAD":
+            reason = info.get("dead_reason") or "Tài khoản không hoạt động / hết hạn"
+            return None, f"Cookie DEAD: {reason}", None
+        if status == "ERROR":
+            return None, "Lỗi kết nối kiểm tra cookie", None
+
+        cookie_dict = {"NetflixId": netflix_id}
+        if secure_id:
+            cookie_dict["SecureNetflixId"] = secure_id
+        cookie_dict.update(extras)
+        cookie_dict.update(info.get("_cookies") or {})
+
+        token, err = generate_nftoken(cookie_dict)
+        if not token:
+            return None, f"Lỗi tạo NFToken: {err}", None
+
+        login_link = f"https://www.netflix.com/browse?nftoken={quote(token, safe='')}"
+        payload = {
+            "plan": info.get("plan") or "-",
+            "country": info.get("country") or "-",
+            "billing": info.get("billing") or "-",
+            "quality": info.get("videoQuality") or info.get("quality") or "-",
+            "email": info.get("email") or "-",
+            "token_expires": "1 giờ",
+        }
+        return login_link, None, payload
+
+    try:
+        loop = asyncio.get_event_loop()
+        link, err, payload = await loop.run_in_executor(_executor, _process)
+        if not link:
+            await searching.edit_text(f"❌ {err or 'Lỗi xử lý cookie'}", parse_mode=ParseMode.HTML)
+            return
+
+        result_text = _build_loginlink_message(link, payload, 0, 0, lang=lang)
+        await searching.edit_text(result_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    except Exception as e:
+        logger.error("handle_admin_cookie_input error: %s", e)
+        await searching.edit_text("❌ Đã xảy ra lỗi khi xử lý cookie.", parse_mode=ParseMode.HTML)

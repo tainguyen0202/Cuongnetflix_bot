@@ -26,17 +26,20 @@ STRINGS = {
         "no_live_cookie": "Hiện tại hệ thống chưa có tài khoản sẵn sàng. Vui lòng thử lại sau vài phút.",
 
         "link_header": "🎬 <b>NETFLIX LOGIN LINK</b>",
-        "link_plan": "Plan: {plan}",
-        "link_mail": "Mail: {email}",
-        "link_han": "Hạn: {billing}",
+        "link_plan": "📦 Gói: <b>{plan}</b>",
+        "link_country": "🌍 Quốc gia: <b>{country}</b>",
+        "link_han": "📅 Kỳ thanh toán tới: <b>{billing}</b>",
+        "link_quality": "📺 Chất lượng: <b>{quality}</b>",
+        "link_mail": "📧 Email: <b>{email}</b>",
+        "link_expire": "⏳ Hết hạn token: <b>{expires}</b>",
+        "link_notice": "💡 <i>Lưu ý: Link chỉ có hiệu lực trong vòng 1 giờ. Nếu cần đăng nhập lại sau đó, vui lòng tạo link mới từ cookie. Mỗi thiết bị dùng một định dạng link riêng — chọn đúng loại thiết bị bạn muốn đăng nhập 💡</i>",
         "link_admin": "Liên Hệ: {admin}",
-        "link_title": "🔗 <b>Link:</b>",
+        "link_title": "🔗 <b>Link đăng nhập thiết bị:</b>",
         "link_devices": (
-            " 💻 <a href=\"{pc}\">Xem trên máy tính</a>\n"
-            "📱 <a href=\"{phone}\">Xem trên điện thoại</a>\n"
-            "📺 <a href=\"{tv}\">Xem trên TV</a>"
+            "💻 <a href=\"{pc}\">Xem trên máy tính (PC / Laptop)</a>\n"
+            "📱 <a href=\"{phone}\">Xem trên điện thoại (iOS / Android)</a>\n"
+            "📺 <a href=\"{tv}\">Xem trên TV (Smart TV / Android Box)</a>"
         ),
-        "link_expire": "⏳ Hết hạn sau: ~1 giờ",
         "link_remaining": "📊 Gói hôm nay còn {left}/{limit} lượt không cần vượt",
         "link_remaining_inf": "📊 Còn ∞ lượt hôm nay",
         "link_shrinkme_gate": "🔗 <b>Link của bạn đã sẵn sàng!</b>",
@@ -92,17 +95,20 @@ STRINGS = {
         "no_live_cookie": "No accounts are available right now. Please try again in a few minutes.",
 
         "link_header": "🎬 <b>NETFLIX LOGIN LINK</b>",
-        "link_plan": "Plan: {plan}",
-        "link_mail": "Mail: {email}",
-        "link_han": "Billing: {billing}",
+        "link_plan": "📦 Plan: <b>{plan}</b>",
+        "link_country": "🌍 Country: <b>{country}</b>",
+        "link_han": "📅 Next Billing: <b>{billing}</b>",
+        "link_quality": "📺 Quality: <b>{quality}</b>",
+        "link_mail": "📧 Email: <b>{email}</b>",
+        "link_expire": "⏳ Token Expires: <b>{expires}</b>",
+        "link_notice": "💡 <i>Note: Link is valid for 1 hour only. If you need to log in again later, please generate a new link from the cookie. Each device uses a specific link format — choose the right device you want to log in to 💡</i>",
         "link_admin": "Contact: {admin}",
-        "link_title": "🔗 <b>Link:</b>",
+        "link_title": "🔗 <b>Device Login Links:</b>",
         "link_devices": (
-            " 💻 <a href=\"{pc}\">Watch on computer</a>\n"
-            "📱 <a href=\"{phone}\">Watch on phone</a>\n"
-            "📺 <a href=\"{tv}\">Watch on TV</a>"
+            "💻 <a href=\"{pc}\">Watch on Computer (PC / Laptop)</a>\n"
+            "📱 <a href=\"{phone}\">Watch on Phone (iOS / Android)</a>\n"
+            "📺 <a href=\"{tv}\">Watch on TV (Smart TV / Android Box)</a>"
         ),
-        "link_expire": "⏳ Expires in: ~1 hour",
         "link_remaining": "📊 Plan left today: {left}/{limit} no-gate uses",
         "link_remaining_inf": "📊 ∞ uses left today",
         "link_shrinkme_gate": "🔗 <b>Your link is ready!</b>",

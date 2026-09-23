@@ -106,10 +106,10 @@ def _build_device_links(token):
         except Exception:
             pass
     return {
-        "pc": f"https://netflix.com/?nftoken={token}",
-        "phone": f"https://netflix.com/unsupported?nftoken={token}",
-        "tv": f"https://netflix.com/tv2?nftoken={token}",
-        "login": f"https://www.netflix.com/login?nftoken={token}",
+        "pc": f"https://www.netflix.com/browse?nftoken={token}",
+        "phone": f"https://www.netflix.com/unsupported?nftoken={token}",
+        "tv": f"https://www.netflix.com/tv2?nftoken={token}",
+        "browse": f"https://www.netflix.com/browse?nftoken={token}",
     }
 
 
@@ -143,8 +143,13 @@ def _check_and_link(cookie_line):
         "country": info.get("country"),
         "plan": info.get("plan"),
         "email": info.get("email"),
+        "billing": info.get("billing"),
+        "quality": info.get("videoQuality") or info.get("quality"),
+        "videoQuality": info.get("videoQuality"),
+        "memberSince": info.get("memberSince"),
         "membershipStatus": info.get("membershipStatus"),
         "isShortened": True,
+        "notice": "Lưu ý: Link chỉ có hiệu lực trong vòng 1 giờ. Nếu cần đăng nhập lại sau đó, vui lòng tạo link mới từ cookie. Mỗi thiết bị dùng một định dạng link riêng — chọn đúng loại thiết bị bạn muốn đăng nhập 💡",
     }
 
     if status == "LIVE":
@@ -152,7 +157,8 @@ def _check_and_link(cookie_line):
         if token:
             result["token"] = token
             result["links"] = _build_device_links(token)
-            result["expires"] = "60 phút"
+            result["expires"] = "1 giờ"
+            result["tokenExpires"] = "1 giờ"
         else:
             result["tokenError"] = err
     return result

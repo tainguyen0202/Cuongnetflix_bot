@@ -40,6 +40,7 @@ from handlers import (
     cmd_lang,
     on_lang_callback,
     on_link_confirm_callback,
+    handle_admin_cookie_input,
 )
 from proxies import start_proxy_scanner
 from cookie_checker import start_auto_checker
@@ -149,8 +150,10 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("loginlink", cmd_loginlink))
     app.add_handler(CommandHandler("lang", cmd_lang))
+    app.add_handler(CommandHandler(["check", "gen", "cookie"], handle_admin_cookie_input))
     app.add_handler(CallbackQueryHandler(on_lang_callback, pattern="^lang_"))
     app.add_handler(CallbackQueryHandler(on_link_confirm_callback, pattern="^link_(yes|no)$"))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_cookie_input))
 
     # Start API server in background thread FIRST (for health checks)
     port = int(os.getenv("PORT", "8081"))

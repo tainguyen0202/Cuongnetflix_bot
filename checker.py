@@ -680,7 +680,7 @@ def validate_nftoken(token, timeout=REQUEST_TIMEOUT):
         return None
     from urllib.parse import quote
 
-    url = f"https://www.netflix.com/login?nftoken={quote(token, safe='')}"
+    url = f"https://www.netflix.com/browse?nftoken={quote(token, safe='')}"
     session = _create_session()
 
     def _do_get(proxy=None):
